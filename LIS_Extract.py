@@ -120,7 +120,7 @@ print('Alignment Checksum - Masked (unrotated) %9.0f Aligned (rotated) %9.0f' %(
 LISAligned = LISAligned[int((LISAligned.shape[0]-68)/2):int(((LISAligned.shape[0]-68)/2)+68)\
 						,int((LISAligned.shape[1]-68)/2):int(((LISAligned.shape[1]-68)/2)+68)]
 
-# create basic stats
+# --- Create basic stats ---
 LISAlignedMeanDep = LISAligned - np.nanmean(LISAligned)			# calculate our mean departures
 
 gmap=gauss_map(size_x=np.shape(LISAligned)[0], size_y = np.shape(LISAligned)[1], sigma_x=10, sigma_y=20)
