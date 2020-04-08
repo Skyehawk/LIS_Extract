@@ -31,7 +31,7 @@ from Gauss_Map import gauss_map
 
 #  --- Construct argument parse to parse the arguments (input dates) ---
 ap = argparse.ArgumentParser()
-ap.add_argument("-l", "--LIS", help=" path to the input file of LIS data (GRIB)")
+
 ap.add_argument("-g", "--GFS", help=" path to the input file of GFS Wind U*V data (GRIB)")
 ap.add_argument("-o", "--output", help=" path to the output directory")
 ap.add_argument("-c", "--lat_lon", nargs="+", help="passed: -c <lat_float> <lon_float>; Lat/Lon of point of convection")
@@ -221,7 +221,7 @@ axes[2][3].set_xticks([])
 axes[2][3].yaxis.tick_right()
 
 sp32 = axes[3][2].imshow(z0, cmap=cmap2, extent=extent, aspect=1/10, origin='lower')
-axes[3][2].set_yticks([])
+axes[3][2].set_xticks([])
 
 #todo: o'all title       plt.title('Title')
 axes[0][0].set_title('SPoRT LIS: RSM 0-10cm (%)' + os.linesep + \

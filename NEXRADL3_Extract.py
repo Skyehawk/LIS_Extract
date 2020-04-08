@@ -59,7 +59,7 @@ fig, axes = plt.subplots(8, 8, figsize=(30, 30))
 
 results = []
 datetimes = []
-#currfig = 0
+currfig = 0
 
 for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data: "):
 	datetimes.append(datetime.strptime(filepath[-12:],'%Y%m%d%H%M'))
@@ -72,11 +72,12 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 
 	#offset = np.array([0.456,2.131])								# TODO: intake the locations of the radar & calc offset from argumet crds
 
-	xlocs = (rng[:-1] * np.sin(np.deg2rad(az[1:, None]))/111.0) - offset[1]	# Convert az,range to x,y
-	ylocs = (rng[:-1] * np.cos(np.deg2rad(az[1:, None]))/111.0) - offset[0]
+	xlocs = (rng[:-1] * np.sin(np.deg2rad(az[1:, None]))/111.0) + offset[1]	# Convert az,range to x,y
+	ylocs = (rng[:-1] * np.cos(np.deg2rad(az[1:, None]))/111.0) + offset[0]
 
 	# --- Calculate coordinates bounding init point based on surface vector(s) (radians) ---
-	baseCrds = np.array([(0.750,0.25,0.0,1.0),(0.750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
+	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
+	#baseCrds = np.array([(2.0,0.5,0.0,1.0),(2.0,-0.5,0.0,1.0),(-0.25,-0.25,0.0,1.0),(-0.25,0.25,0.0,1.0),(2.0,0.5,0.0,1.0)])
 	testLocBearing = 0
 	testLoc = np.array([0,0])										# Offsets have been delt with earlier by adding in the differance of radar loc and convection init loc, leave this as is
 	#comp_matrix(scale, rotation, shear, translation)				# ref
@@ -100,21 +101,52 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 	rDataMaskedClip = rDataMaskedClip*rDataMaskClip
 	results.append(rDataMaskedClip)									# Store the output in list
 
-reflectThresh = 139.0												#return strength (xx = 35dbz)
+	# --- Add to Plot (Debugging) ---
+	plotx = currfig%8
+	ploty = int(currfig/8)
+	#print("plotx",plotx)
+	#print("ploty",ploty)
+	currfig += 1
+
+	#deltaX = 0
+	#deltaY = 0
+	negXLim = -.5
+	posXLim = 1.5
+	negYLim = -1.0
+	posYLim = 1.0
+	norm, cmap = colortables.get_with_steps('NWSReflectivity', 18, 16)
+	tempdata = np.copy(rDataMaskedClip)								# create a deep copy of data to maipulate for plotting
+	tempdata[tempdata == 0] = np.ma.masked
+	axes[ploty][plotx].pcolormesh(xlocs[indices], ylocs[indices], tempdata, norm=norm, cmap=cmap)
+	axes[ploty][plotx].set_aspect('equal', 'datalim')
+	#axes[ploty][plotx].set_xlim(negXLim, posXLim)
+	#axes[ploty][plotx].set_ylim(negYLim, posYLim)
+
+	bCXs, bCYs = zip(*baseCrds[:,:2]) #create lists of x and y values for base crds
+	axes[ploty][plotx].plot(bCXs, bCYs)
+	axes[ploty][plotx].plot(offset[1], offset[0], 'o')				# Location of the Radar
+	#ax = point.plot(x='x', y='y', ax=ax, style='bx', label='point')
+	add_timestamp(axes[ploty][plotx], f.metadata['prod_time'], y=0.02, high_contrast=True)
+	axes[ploty][plotx].tick_params(axis='both', which='both')
+	#axes[ploty][plotx].set_xticks([]) #disable x ticks
+
+
+
+reflectThresh = 50												#return strength (139.0 = 35dbz)
 resultsArray = np.array(results)
 res = []
 for arr in tqdm(results, desc="Searching Data"):
 	res.append(sum(map(lambda i: i >= reflectThresh, arr.flatten())))
-valsDF = pd.DataFrame(list(zip(datetimes,res)), columns =['datetime', 'value'])
+valsDF = pd.DataFrame(list(zip(datetimes,res)), columns =['datetime', 'value']) # currently broken due to setting 0s to masked elements (line ~117)
 valsDF.to_csv(args["output"] + '.csv', index = False)
-
+print(valsDF)
 # --- Plot Output ---
 
-axes[-1][-1].plot_date(datetimes,res,linestyle='solid')
+axes[7][7].plot_date(datetimes,res,linestyle='solid')
 
 plt.gcf().autofmt_xdate()
 date_format = mpl_dates.DateFormatter('%H:%MGMT')
-axes[-1][-1].xaxis.set_major_formatter(date_format)
+axes[7][7].xaxis.set_major_formatter(date_format)
 
 plt.tight_layout()
 plt.savefig(args["output"] +'Nexrad.png') # Set the output file name
