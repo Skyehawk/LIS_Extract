@@ -29,7 +29,7 @@ from skimage.transform import rotate				# v. 0.15.0
 from Transformation_Matrix_2 import comp_matrix
 from Gauss_Map import gauss_map 
 
-#  --- Construct argument parse to parse the arguments (input dates) ---
+# --- Construct argument parse to parse the arguments (input dates) ---
 ap = argparse.ArgumentParser()
 
 ap.add_argument("-g", "--GFS", help=" path to the input file of GFS Wind U*V data (GRIB)")
@@ -221,7 +221,7 @@ axes[2][3].set_xticks([])
 axes[2][3].yaxis.tick_right()
 
 sp32 = axes[3][2].imshow(z0, cmap=cmap2, extent=extent, aspect=1/10, origin='lower')
-axes[3][2].set_xticks([])
+axes[3][2].set_yticks([])
 
 #todo: o'all title       plt.title('Title')
 axes[0][0].set_title('SPoRT LIS: RSM 0-10cm (%)' + os.linesep + \
