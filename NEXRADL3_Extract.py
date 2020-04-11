@@ -94,7 +94,7 @@ def get_levels_vectors(u,v,loc=0,bounds=0):
 
 
 #GFSGrbs = pygrib.open(args["GFS"])
-#compLayers = [(192,193),(176,177),(144,145),(109,110),(216,217)]
+#compLayers = [(192,193),(176,177),(144,145),(109,110),(264,265)]
 
 #layersVals = []
 #for layer in tqdm(compLayers, desc='Finding Vcl: '):
@@ -130,7 +130,7 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 	# --- Calculate coordinates bounding init point based on surface vector(s) (radians) ---
 	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
 	#baseCrds = np.array([(5.0,5,0.0,1.0),(5.0,-0.5,0.0,1.0),(-5.0,-5.0,0.0,1.0),(-5.0,5.0,0.0,1.0),(5.0,5.0,0.0,1.0)])
-	testLocBearing = -0.5
+	testLocBearing = -.5
 	testLoc = np.array([0,0])										# Offsets have been delt with earlier by adding in the differance of radar loc and convection init loc, leave this as is
 	TM = comp_matrix(np.ones(3), np.array([0,0, testLocBearing]), np.ones(3), np.pad(testLoc, (0, 1), 'constant'))
 	polyVerts = TM.dot(baseCrds.T).T[:,:2]							# Apply transformation Matrix, remove padding, and re-transpose
