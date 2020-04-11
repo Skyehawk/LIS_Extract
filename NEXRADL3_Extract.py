@@ -120,7 +120,7 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 	f = Level3File(filepath)
 	dataDict = f.sym_block[0][0]									# Pull the data out of the file object
 	data = np.ma.array(dataDict['data'])							# Turn into an array, then mask
-	#data[data == 0] = np.ma.masked 	
+	#data[data == 0] = np.ma.masked 								# convert 0s to masked
 	az = np.array(dataDict['start_az'] + [dataDict['end_az'][-1]])	# Grab azimuths and calculate a range based on number of gates
 	rng = np.linspace(0, f.max_range, data.shape[-1] + 1)
 
@@ -132,7 +132,6 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 	#baseCrds = np.array([(5.0,5,0.0,1.0),(5.0,-0.5,0.0,1.0),(-5.0,-5.0,0.0,1.0),(-5.0,5.0,0.0,1.0),(5.0,5.0,0.0,1.0)])
 	testLocBearing = -0.5
 	testLoc = np.array([0,0])										# Offsets have been delt with earlier by adding in the differance of radar loc and convection init loc, leave this as is
-	#comp_matrix(scale, rotation, shear, translation)				# ref
 	TM = comp_matrix(np.ones(3), np.array([0,0, testLocBearing]), np.ones(3), np.pad(testLoc, (0, 1), 'constant'))
 	polyVerts = TM.dot(baseCrds.T).T[:,:2]							# Apply transformation Matrix, remove padding, and re-transpose
 
@@ -155,8 +154,6 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 	# --- Add to Plot (Debugging) ---
 	plotx = currfig%8
 	ploty = int(currfig/8)
-	#print("plotx",plotx)
-	#print("ploty",ploty)
 	currfig += 1
 
 	negXLim = -.5
@@ -165,58 +162,50 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 	posYLim = 1.0
 	norm, cmap = colortables.get_with_steps('NWSReflectivity', 18, 16)
 	tempdata = np.copy(rDataMaskedClip)								# create a deep copy of data to maipulate for plotting
-	tempdata[tempdata == 0] = np.ma.masked
+	#tempdata[tempdata == 0] = ma.masked
 	axes[ploty][plotx].pcolormesh(xlocs[indices], ylocs[indices], tempdata, norm=norm, cmap=cmap)
 	axes[ploty][plotx].set_aspect('equal', 'datalim')
 	axes[ploty][plotx].set_xlim(negXLim, posXLim)
 	axes[ploty][plotx].set_ylim(negYLim, posYLim)
 
-	pVXs, pVYs = zip(*polyVerts)									#create lists of x and y values for transformed polyVerts
+	pVXs, pVYs = zip(*polyVerts)									# create lists of x and y values for transformed polyVerts
 	axes[ploty][plotx].plot(pVXs,pVYs)
 	axes[ploty][plotx].plot(offset[1], offset[0], 'o')				# Location of the Radar
 	axes[ploty][plotx].plot(0.0, 0.0, 'bx')				# Location of the Convection
-	#ax = point.plot(x='x', y='y', ax=ax, style='bx', label='point')
 	add_timestamp(axes[ploty][plotx], f.metadata['prod_time'], y=0.02, high_contrast=True)
 	axes[ploty][plotx].tick_params(axis='both', which='both')
-	#axes[ploty][plotx].set_xticks([]) #disable x ticks
 
 
-
-reflectThresh = 139												#return strength (139.0 = 35dbz)
+reflectThresh = 139													# return strength threshold (139.0 = 35dbz)
 resultsArray = np.array(results)
 resArea = []
 resRef = []
 for arr in tqdm(results, desc="Searching Data"):
 	resArea.append(sum(map(lambda i: i >= reflectThresh, arr.flatten())))
 	resRef.append(np.mean(np.array(list(filter(lambda x: x >= reflectThresh, arr.flatten())))))
-	#print('ref: ', np.array(list(filter(lambda x: x >= reflectThresh, arr.flatten()))))
-	#list(filter(lambda x: x % 2 == 0, fibonacci))
 valsDF = pd.DataFrame(list(zip(datetimes,resArea,resRef)), columns =['datetime', 'areaValue', 'refValue']) # currently broken due to setting 0s to masked elements (line ~117)
 valsDF.to_csv(args["output"] + '.csv', index = False)
 print(valsDF)
 
 window = 5
-yArea_av = movingaverage(resArea, window)
+yArea_av = movingaverage(resArea, window)							# Create moving averages for time series'
 yRef_av = movingaverage(resRef, window)
 
 # --- Plot time series---
-
-date_format = mpl_dates.DateFormatter('%H:%MGMT')
+date_format = mpl_dates.DateFormatter('%H:%Mz')
 
 axes[-1][-2].plot_date(datetimes,resArea,linestyle='solid')
-axes[-1][-2].plot_date(datetimes[window:-window],yArea_av[window:-window],"r", linestyle='solid')
+axes[-1][-2].plot_date(datetimes[window:-window], yArea_av[window:-window],"r", linestyle='solid')
 axes[-1][-2].xaxis.set_major_formatter(date_format)
-axes[-1][-2].tick_params(labelrotation=45)
+plt.setp(axes[-1][-2].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 axes[-1][-2].set_title('Area ≥ 35dbz')
 
 axes[-1][-1].plot_date(datetimes,resRef,linestyle='solid')
-axes[-1][-1].plot_date(datetimes[window:-window],yRef_av[window:-window],"r", linestyle='solid')
+axes[-1][-1].plot_date(datetimes[window:-window], yRef_av[window:-window],"r", linestyle='solid')
 axes[-1][-1].xaxis.set_major_formatter(date_format)
-axes[-1][-1].tick_params(labelrotation=45)
+plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 axes[-1][-1].set_title('Mean of Reflectivity ≥ 35dbz')
-
-
+# TODO: convert y axis to dbz
 
 plt.tight_layout()
 plt.savefig(args["output"] +'Nexrad.png') # Set the output file name
-
