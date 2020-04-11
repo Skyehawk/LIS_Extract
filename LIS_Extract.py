@@ -31,7 +31,7 @@ from Gauss_Map import gauss_map
 
 # --- Construct argument parse to parse the arguments (input dates) ---
 ap = argparse.ArgumentParser()
-
+ap.add_argument("-l", "--LIS", help=" path to the input file of LIS data (GRIB)")
 ap.add_argument("-g", "--GFS", help=" path to the input file of GFS Wind U*V data (GRIB)")
 ap.add_argument("-o", "--output", help=" path to the output directory")
 ap.add_argument("-c", "--lat_lon", nargs="+", help="passed: -c <lat_float> <lon_float>; Lat/Lon of point of convection")
@@ -65,12 +65,7 @@ UGridLon, UGridLat = np.meshgrid(ULons, ULats) 								# regularly spaced 2D gri
 VLons = np.linspace(float(VGrb['longitudeOfFirstGridPointInDegrees']), float(VGrb['longitudeOfLastGridPointInDegrees']), int(VGrb['Ni']) )	
 VLats = np.linspace(float(VGrb['latitudeOfFirstGridPointInDegrees']), float(VGrb['latitudeOfLastGridPointInDegrees']), int(VGrb['Nj']) )	
 V, VLons = shiftgrid(180., V, VLons, start=False)  							# use this to bump data from 0..360 on the lons to -180..180
-VGridLon, VGridLat = np.meshgrid(VLons, VLats) 								# regularly spaced 2D grid of GFS V component values
-
-# get wind vector from the nearest grid cell
-#testLoc = np.array([-102.210999, 43.824593])								#2017/06/11
-#testLoc = np.array([-99.184, 41.217])										#2017/06/14
-#testLoc = np.array([-98.066, 45.456])										#2017/07/25
+#VGridLon, VGridLat = np.meshgrid(VLons, VLats) 							#disabled - only used for plotting		# regularly spaced 2D grid of GFS V component values
 
 testLoc = np.array([float(args["lat_lon"][1]),float(args["lat_lon"][0])])
 gridTestLoc = np.around(testLoc*2)/2										# round to the nearest 1.0 for GFS3, 0.5 for GFS4
@@ -237,7 +232,7 @@ axes[2][0].set_title('Departures from Mean')
 axes[2][2].set_title('Gradient (Slope)')
 
 axes[0][1].axis('off')
-axes[1][0].axis('off')		#hist of raw values
+axes[1][0].axis('off')		# hist of raw values
 axes[1][1].axis('off')
 axes[1][3].axis('off')
 axes[3][1].axis('off')

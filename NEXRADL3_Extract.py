@@ -53,6 +53,11 @@ ap.add_argument("-c", "--convLatLon", nargs="+", help="passed: -c <lat_float> <l
 ap.add_argument("-s", "--sensorLatLon", nargs="+", help="passed: -s <lat_float> <lon_float>; Lat/Lon of radar")
 args = vars(ap.parse_args())
 
+# --- Utility function(s) ---
+def movingaverage(interval, window_size):
+    window = np.ones(int(window_size))/float(window_size)
+    return np.convolve(interval, window, 'same')
+
 # --- Get mean flow of cloud layer (Vcl) --- 
 
 def get_levels_vectors(u,v,loc=0,bounds=0):
@@ -177,21 +182,40 @@ for filepath in tqdm(glob.glob(join(args["NEXRADL3"],'*')), desc="Bounding Data:
 
 
 
-reflectThresh = 50												#return strength (139.0 = 35dbz)
+reflectThresh = 139												#return strength (139.0 = 35dbz)
 resultsArray = np.array(results)
-res = []
+resArea = []
+resRef = []
 for arr in tqdm(results, desc="Searching Data"):
-	res.append(sum(map(lambda i: i >= reflectThresh, arr.flatten())))
-valsDF = pd.DataFrame(list(zip(datetimes,res)), columns =['datetime', 'value']) # currently broken due to setting 0s to masked elements (line ~117)
+	resArea.append(sum(map(lambda i: i >= reflectThresh, arr.flatten())))
+	resRef.append(np.mean(np.array(list(filter(lambda x: x >= reflectThresh, arr.flatten())))))
+	#print('ref: ', np.array(list(filter(lambda x: x >= reflectThresh, arr.flatten()))))
+	#list(filter(lambda x: x % 2 == 0, fibonacci))
+valsDF = pd.DataFrame(list(zip(datetimes,resArea,resRef)), columns =['datetime', 'areaValue', 'refValue']) # currently broken due to setting 0s to masked elements (line ~117)
 valsDF.to_csv(args["output"] + '.csv', index = False)
 print(valsDF)
-# --- Plot Output ---
 
-axes[7][7].plot_date(datetimes,res,linestyle='solid')
+window = 5
+yArea_av = movingaverage(resArea, window)
+yRef_av = movingaverage(resRef, window)
 
-#plt.gcf().autofmt_xdate()
+# --- Plot time series---
+
 date_format = mpl_dates.DateFormatter('%H:%MGMT')
-#axes[7][7].xaxis.set_major_formatter(date_format)
+
+axes[-1][-2].plot_date(datetimes,resArea,linestyle='solid')
+axes[-1][-2].plot_date(datetimes[window:-window],yArea_av[window:-window],"r", linestyle='solid')
+axes[-1][-2].xaxis.set_major_formatter(date_format)
+axes[-1][-2].tick_params(labelrotation=45)
+axes[-1][-2].set_title('Area ≥ 35dbz')
+
+axes[-1][-1].plot_date(datetimes,resRef,linestyle='solid')
+axes[-1][-1].plot_date(datetimes[window:-window],yRef_av[window:-window],"r", linestyle='solid')
+axes[-1][-1].xaxis.set_major_formatter(date_format)
+axes[-1][-1].tick_params(labelrotation=45)
+axes[-1][-1].set_title('Mean of Reflectivity ≥ 35dbz')
+
+
 
 plt.tight_layout()
 plt.savefig(args["output"] +'Nexrad.png') # Set the output file name
