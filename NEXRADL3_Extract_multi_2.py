@@ -39,6 +39,9 @@ from tqdm import tqdm
 from Transformation_Matrix_2 import comp_matrix
 from Gauss_Map import gauss_map 
 
+from RadarSlice import RadarSlice
+from RadarROI import RadarROI
+
 # Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -59,18 +62,6 @@ args = vars(ap.parse_args())
 def movingaverage(interval, window_size):
     window = np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
-
-#def writer(q):
-#	cols = columns =['datetime', 'x' ,'y' ,'i' ,'data', 'areaValue', 'refValue']
-#	tempDF = pd.DataFrame(columns=cols)
-#	while 1:
-#		vals = q.get()
-#		if vals == 'shutdown':
-#			print('Shutdown message recieved')
-#			break
-#		row = pd.DataFrame(vals, columns=cols)
-#		tempDF = pd.concat([tempDF, row], ignore_index=True)
-#	return tempDF
 
 # --- Get mean flow of cloud layer (Vcl) --- 
 
@@ -122,47 +113,18 @@ def calculate_radar_stats(d, filepath):
 
 	offset = np.array([float(args["sensorLatLon"][0]) - float(args["convLatLon"][0]),
 						float(args["sensorLatLon"][1]) - float(args["convLatLon"][1])])
-	#print('offset (Lat, Lon):', offset)
-	reflectThresh = 139												# return strength threshold (139.0 = 35dbz)
-	# --- Read in File ---
-	f = Level3File(filepath)
-	dataDict = f.sym_block[0][0]									# Pull the data out of the file object
-	data = np.ma.array(dataDict['data'])							# Turn into an array, then mask
-	
-	az = np.array(dataDict['start_az'] + [dataDict['end_az'][-1]])	# Grab azimuths and calculate a range based on number of gates
-	rng = np.linspace(0, f.max_range, data.shape[-1] + 1)
-
-	xlocs = (rng[:-1] * np.sin(np.deg2rad(az[1:, None]))/111.0) + offset[1]	# Convert az,range to x,y
-	ylocs = (rng[:-1] * np.cos(np.deg2rad(az[1:, None]))/111.0) + offset[0]
-
-	# --- Calculate coordinates bounding init point based on surface vector(s) (radians) ---
 	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
-	#baseCrds = np.array([(5.0,5,0.0,1.0),(5.0,-0.5,0.0,1.0),(-5.0,-5.0,0.0,1.0),(-5.0,5.0,0.0,1.0),(5.0,5.0,0.0,1.0)])
 	testLocBearing = -.5
-	testLoc = np.array([0,0])										# Offsets have been delt with earlier by adding in the differance of radar loc and convection init loc, leave this as is
-	TM = comp_matrix(scale=np.ones(3), rotation=np.array([0,0, testLocBearing]), shear=np.ones(3), translation=np.pad(testLoc, (0, 1), 'constant'))
-	polyVerts = TM.dot(baseCrds.T).T[:,:2]							# Apply transformation Matrix, remove padding, and re-transpose
 
-	# --- Generate ROI from coordiantes (above) create 2D boolean array to mask with ---
-	xp,yp = xlocs.flatten(),ylocs.flatten()
-	points = np.vstack((xp,yp)).T
-	path = Path(polyVerts)
-	grid = path.contains_points(points)
-	grid = grid.reshape(np.shape(xlocs))
-	rDataMasked = np.ma.masked_array(data, np.invert(grid))
-
-	# --- Clip our masked array, create sub-array of data and rotate ---
-	i, j = np.where(grid)
-	indices = np.meshgrid(np.arange(min(i), max(i) + 1), np.arange(min(j), max(j) + 1), indexing='ij')
-	rDataMaskedClip = data[indices]
-	rDataMaskClip = grid[indices]
-	rDataMaskedClip = rDataMaskedClip*rDataMaskClip
-	resArea = sum(map(lambda i: i >= reflectThresh, rDataMaskedClip.flatten()))
-	resRef = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, rDataMaskedClip.flatten()))))
-	x = list(xlocs)
-	y = list(ylocs)
-
-	d[f.metadata['prod_time']] = [f.metadata['prod_time'],indices,x,y,rDataMaskedClip,resArea,resRef]
+	roi = RadarROI(file=filepath,sensorLocation=np.array([0.0,0.0]))
+	roi.calc_cartesian()
+	roi.shift_cart_orgin(offset=offset)
+	roi.extractROI(baseCrds=baseCrds, baseBearing=testLocBearing)
+	reflectThresh = 139												# return strength threshold (139.0 = 35dbz)		
+	roi.find_mean_reflectivity(reflectThresh)
+	roi.find_area(reflectThresh)
+	#print(f'roi datetime: {roi.datetime} meanRef {roi.find_mean_reflectivity(reflectThresh)}')
+	d[roi.datetime] = [roi.datetime,roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,roi.area,roi.meanReflectivity]
 
 def main():
 	manager = mp.Manager()
