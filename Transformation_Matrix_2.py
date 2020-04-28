@@ -1,5 +1,3 @@
-import numpy as np 																		  # ver. 1.15.0
-
 #** 
 # @author      Skye Leake <skleake96@gmail.com>
 # @version     0.1.0
@@ -14,6 +12,10 @@ import numpy as np 																		  # ver. 1.15.0
 # @param  translation 			- [float] translation along a primary axis
 # @return Transformation matrix - [float] calcualted: scale by rotation_y by rotation_x by rotation_z by translation
 #/
+
+# --- Imports ---
+import numpy as np 																		  # ver. 1.15.0
+
 def comp_matrix(scale, rotation, shear, translation):
 	# should filter inputs if accepting error prone input (dtype, length, and domains)
 	Tx = translation[0]
