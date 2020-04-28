@@ -206,8 +206,14 @@ def main():
 		tempdata = record['data']								# create a deep copy of data to maipulate for plotting
 		#indices = record['data'][2]
 		#loc = record['data'][0]
-		#tempdata[tempdata == 0] = ma.masked
+		#tempdata[tempdata == 0] = np.ma.masked 				# mask out 0s for plotting
 		print(f'entering plot 1 {i}')
+
+
+
+		#!!! TODO: Broken from heere down (kindof) see multi_2
+
+
 
 		# x and y refer to xlocs and ylocs ... we need to get these passed. 
 		axes[ploty][plotx].pcolormesh(record['xlocs'][record['indices']],record['ylocs'][record['indices']], tempdata, norm=norm, cmap=cmap)

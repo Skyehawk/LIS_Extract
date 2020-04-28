@@ -1,4 +1,12 @@
-import warnings
+# NEXRAD Data Encapsulation - v0.1.0
+# Python Version: 3.7.3
+#
+# @author: Skye Leake
+# @date: 2020-04-28
+#
+# Updated
+# 2020-04-28
+#
 
 import numpy as np
 from matplotlib.path import Path
@@ -30,6 +38,12 @@ class RadarROI(RadarSlice):
         return self._meanReflectivity
 
     @property
+    def varReflectivity(self):
+        if not hasattr(self, '_varReflectivity'):
+            self._varReflectivity = 0.0
+        return self._varReflectivity
+
+    @property
     def polyVerts(self):
         if not hasattr(self, '_polyVerts'):
             self._polyVerts = []
@@ -40,7 +54,6 @@ class RadarROI(RadarSlice):
         if not hasattr(self,'_tm'):
             self._tm = comp_matrix(scale=np.ones(2), rotation=np.zeros(2), 
                                     shear=np.ones(2), translation=np.zeros(2))
-
         return self._tm
 
     @clippedData.setter
@@ -58,6 +71,10 @@ class RadarROI(RadarSlice):
     @meanReflectivity.setter
     def meanReflectivity(self, value):
         self._meanReflectivity = value
+
+    @varReflectivity.setter
+    def varReflectivity(self, value):
+        self._varReflectivity = value
 
     @polyVerts.setter
     def polyVerts(self,value):
@@ -111,6 +128,11 @@ class RadarROI(RadarSlice):
     def find_mean_reflectivity(self,reflectThresh=0.0):
         self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.meanReflectivity
+
+    #Override
+    def find_variance_reflectivity(self,reflectThresh=0.0):
+        self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
+        return self.varReflectivity
 
     #Override
     def __str__(self):

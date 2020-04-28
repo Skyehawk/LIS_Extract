@@ -1,11 +1,11 @@
-# NEXRAD Data Extract - v0.10
+# NEXRAD Data Extract - v0.11.0
 # Python Version: 3.7.3
 #
-# Skye Leake
-# 2020-03-27
+# @author: Skye Leake
+# @date: 2020-03-27
 #
 # Updated
-# 2020-03-28
+# 2020-04-28
 #
 # Developed as a tool to extract values from NEXRAD inputs for Thesis work
 # 
@@ -20,30 +20,24 @@ from os.path import join
 import argparse
 import numpy as np
 import multiprocessing as mp
-import pygrib
 from datetime import datetime
+
 import matplotlib.pyplot as plt						# v. 3.1.0
 import matplotlib.colors as colors
 from matplotlib.path import Path
 from matplotlib import dates as mpl_dates
 from mpl_toolkits.basemap import Basemap
 from mpl_toolkits.basemap import shiftgrid
-from skimage.transform import rotate				# v. 0.15.0
+
 import pandas as pd
-#from metpy.cbook import get_test_data
-from metpy.io import Level3File
 from metpy.plots import add_timestamp, colortables
 import glob											# v0.7	
 from tqdm import tqdm
-
-from Transformation_Matrix_2 import comp_matrix
-from Gauss_Map import gauss_map 
 
 from RadarSlice import RadarSlice
 from RadarROI import RadarROI
 
 # Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
-from MeasureDuration import MeasureDuration
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -71,15 +65,15 @@ def calculate_radar_stats(d, filepath):
 	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
 	testLocBearing = -.5
 
-	roi = None		#debug
 	roi = RadarROI(file=filepath,sensorLocation=np.array([0.0,0.0]))
 	roi.calc_cartesian()
 	roi.shift_cart_orgin(offset=offset)
 	roi.extractROI(baseCrds=baseCrds, baseBearing=testLocBearing)
-	reflectThresh = 139												# return strength threshold (139.0 = 35dbz)		
-	roi.find_mean_reflectivity(reflectThresh)
+	reflectThresh = 139.0												# return strength threshold (139.0 = 35dbz)		
 	roi.find_area(reflectThresh)
-	d[roi.datetime] = [roi.datetime,roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,roi.polyVerts,offset,roi.area,roi.meanReflectivity]
+	roi.find_mean_reflectivity(reflectThresh)
+	roi.find_variance_reflectivity(reflectThresh)
+	d[roi.datetime] = [roi.datetime,roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,roi.polyVerts,offset,roi.area,roi.meanReflectivity,roi.varReflectivity]
 
 def main():
 	manager = mp.Manager()
@@ -98,7 +92,7 @@ def main():
 	pool.close()
 	pool.join()
 
-	columns =['datetime','indices', 'xlocs', 'ylocs', 'data', 'polyVerts', 'offset', 'areaValue', 'refValue']
+	columns =['datetime','indices', 'xlocs', 'ylocs', 'data', 'polyVerts', 'offset', 'areaValue', 'refValue', 'varRefValue']
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)
 	resultsDF['datetime'] = pd.to_datetime(resultsDF.datetime)
 	resultsDF.sort_values(by='datetime', inplace=True)
@@ -118,43 +112,57 @@ def main():
 		negYLim = -1.0
 		posYLim = 1.0
 		norm, cmap = colortables.get_with_steps('NWSReflectivity', 18, 16)
-		tempdata = record['data']								# create a deep copy of data to maipulate for plotting
-		#indices = record['data'][2]
-		#loc = record['data'][0]
-		#tempdata[tempdata == 0] = ma.masked
-
-		# x and y refer to xlocs and ylocs ... we need to get these passed. 
+		tempdata = record['data']									# create a deep copy of data to maipulate for plotting
+		tempdata[tempdata == 0] = np.ma.masked						# mask out 0s for plotting
+ 
 		axes[ploty][plotx].pcolormesh(record['xlocs'],record['ylocs'], tempdata, norm=norm, cmap=cmap)
 		axes[ploty][plotx].set_aspect('equal', 'datalim')
 		axes[ploty][plotx].set_xlim(negXLim, posXLim)
 		axes[ploty][plotx].set_ylim(negYLim, posYLim)
-		pVXs, pVYs = zip(*record['polyVerts'])								# create lists of x and y values for transformed polyVerts
+		pVXs, pVYs = zip(*record['polyVerts'])						# create lists of x and y values for transformed polyVerts
 		axes[ploty][plotx].plot(pVXs,pVYs)
 		axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
 		axes[ploty][plotx].plot(0.0, 0.0, 'bx')						# Location of the convection
 		add_timestamp(axes[ploty][plotx], record['datetime'], y=0.02, high_contrast=True)
 		axes[ploty][plotx].tick_params(axis='both', which='both')
 
-	window = 5
-	yArea_av = movingaverage(resultsDF['areaValue'].to_list(), window)							# Create moving averages for time series'
-	yRef_av = movingaverage(resultsDF['refValue'].to_list(), window)
+	# pull data out of DF to make code cleaner
+	datetimes = resultsDF['datetime'].tolist()
+	areaValues = resultsDF['areaValue'].tolist()					# area ≥ 35dbz within ROI
+	refValues = resultsDF['refValue'].tolist()						# mean reflectivity ≥ 35dbz within ROI
+	varValues = resultsDF['varRefValue'].tolist()						# variance of mean reflectivity ≥ 35dbz within ROI
+	cvValues = [a / b for a, b in zip(varValues, refValues)]		# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
 
-	#TODO: Fix time series plots (commented out)
-	#axes[-1][-2].plot_date(record['datetime'],record['areaValue'],linestyle='solid')
-	#axes[-1][-2].plot_date(datetimes[window:-window], yArea_av[window:-window],"r", linestyle='solid')
-	#axes[-1][-2].xaxis.set_major_formatter(date_format)
-	plt.setp(axes[-1][-2].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
-	axes[-1][-2].set_title('Area ≥ 35dbz')
+	window = 5																			# number of samples in moving average
+	yArea_avg = movingaverage(areaValues, window)					# create moving averages for time series'
+	yRef_avg = movingaverage(refValues, window)
+	#yVar_avg = movingaverage(varValues, window)
+	yCV_avg = movingaverage(cvValues, window)
 
-	#axes[-1][-1].plot_date(datetimes,resRef,linestyle='solid')
-	#axes[-1][-1].plot_date(datetimes[window:-window], yRef_av[window:-window],"r", linestyle='solid')
-	#axes[-1][-1].xaxis.set_major_formatter(date_format)
-	plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
-	axes[-1][-1].set_title('Mean of Reflectivity ≥ 35dbz')
+	# Area for Reflectivity ≥ 35dbz
+	axes[-1][-3].plot_date(datetimes,areaValues,linestyle='solid', ms=4)
+	axes[-1][-3].plot_date(datetimes[window:-window], yArea_avg[window:-window],"r", linestyle='solid')
+	axes[-1][-3].xaxis.set_major_formatter(date_format)
+	plt.setp(axes[-1][-3].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
+	axes[-1][-3].set_title('Area of Reflectivity ≥ 35dbz')
+
 	# TODO: convert y axis to dbz
+	# Mean of Reflectivity ≥ 35dbz
+	axes[-1][-2].plot_date(datetimes,refValues,linestyle='solid', ms=4)
+	axes[-1][-2].plot_date(datetimes[window:-window], yRef_avg[window:-window],"r", linestyle='solid')
+	axes[-1][-2].xaxis.set_major_formatter(date_format)
+	plt.setp(axes[-1][-2].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
+	axes[-1][-2].set_title('Mean of Reflectivity ≥ 35dbz')
+	
+	# Coeff. of Variance of Reflectivity ≥ 35dbz
+	axes[-1][-1].plot_date(datetimes,cvValues,linestyle='solid', ms=4)
+	axes[-1][-1].plot_date(datetimes[window:-window], yCV_avg[window:-window],"r", linestyle='solid')
+	axes[-1][-1].xaxis.set_major_formatter(date_format)
+	plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
+	axes[-1][-1].set_title('CV of Reflectivity ≥ 35dbz')
 
 	plt.tight_layout()
-	plt.savefig(args["output"] +'Nexrad.png') # Set the output file name
+	plt.savefig(args["output"] +'Nexrad.png') 						# Set the output file name
 
 if __name__ == '__main__':
 	main()

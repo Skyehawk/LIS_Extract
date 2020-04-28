@@ -1,3 +1,13 @@
+# NEXRAD Data Encapsulation - v0.1.0
+# Python Version: 3.7.3
+#
+# @author: Skye Leake
+# @date: 2020-04-27
+#
+# Updated
+# 2020-04-28
+#
+
 import warnings
 
 import numpy as np
@@ -49,6 +59,12 @@ class RadarSlice(object):
             self._meanReflectivity = 0.0
         return self._meanReflectivity
 
+    @property
+    def varReflectivity(self):
+        if not hasattr(self, '_varReflectivity'):
+            self._varReflectivity = 0.0
+        return self._varReflectivity
+
     @datetime.setter
     def datetime(self, value):
         self._datetime = value
@@ -77,6 +93,9 @@ class RadarSlice(object):
     def meanReflectivity(self,value):
         self._meanReflectivity = value
 
+    @varReflectivity.setter
+    def varReflectivity(self, value):
+        self._varReflectivity = value
 
     # Constructor (init)
     def __init__(self, file, sensorLocation=np.array([0.0,0.0])):
@@ -94,7 +113,7 @@ class RadarSlice(object):
         self.kmPerDeg = 111.0
         self.xlocs = (self.rng[:-1] * np.sin(np.deg2rad(self.az[1:, None]))/self.kmPerDeg) # Convert az,range to x,y, change to deg from km
         self.ylocs = (self.rng[:-1] * np.cos(np.deg2rad(self.az[1:, None]))/self.kmPerDeg)
-        return(True)
+        return True
 
     def shift_cart_orgin(self, offset):
         #offset must be in (lat,lon)
@@ -119,6 +138,10 @@ class RadarSlice(object):
     def find_mean_reflectivity(self,reflectThresh=0.0):
         self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.data.flatten()))))
         return self.meanReflectivity
+
+    def find_variance_reflectivity(self,reflectThresh=0.0):
+        self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
+        return self.varReflectivity
 
     def __str__(self):
         return ('string method for radarSlice')
