@@ -43,6 +43,7 @@ from RadarSlice import RadarSlice
 from RadarROI import RadarROI
 
 # Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
+from MeasureDuration import MeasureDuration
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -63,52 +64,6 @@ def movingaverage(interval, window_size):
     window = np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
 
-# --- Get mean flow of cloud layer (Vcl) --- 
-
-#def get_levels_vectors(u,v,loc=0,bounds=0):
-#	UGrb = GFSGrbs.select()[u]
-#	#print("\nU Data: " + str(UGrb))
-#	U = UGrb.values * 1.944											# array containing U component gridded values (knots)
-#	#VGrb = GFSGrbs.select(name=v)[0]
-#	VGrb = GFSGrbs.select()[v]
-#	#print("\nV Data: " + str(VGrb))
-#	V = VGrb.values * 1.944											# array containing V component gridded values (knots)
-#
-#	ULons = np.linspace(float(UGrb['longitudeOfFirstGridPointInDegrees']), float(UGrb['longitudeOfLastGridPointInDegrees']), int(UGrb['Ni']) )
-#	ULats = np.linspace(float(UGrb['latitudeOfFirstGridPointInDegrees']), float(UGrb['latitudeOfLastGridPointInDegrees']), int(UGrb['Nj']) )	
-#	U, ULons = shiftgrid(180., U, ULons, start=False)  							# use this to bump data from 0..360 on the lons to -180..180
-#	UGridLon, UGridLat = np.meshgrid(ULons, ULats) 								# regularly spaced 2D grid of GFS U component values
-#
-#	VLons = np.linspace(float(VGrb['longitudeOfFirstGridPointInDegrees']), float(VGrb['longitudeOfLastGridPointInDegrees']), int(VGrb['Ni']) )	
-#	VLats = np.linspace(float(VGrb['latitudeOfFirstGridPointInDegrees']), float(VGrb['latitudeOfLastGridPointInDegrees']), int(VGrb['Nj']) )	
-#	V, VLons = shiftgrid(180., V, VLons, start=False)  							# use this to bump data from 0..360 on the lons to -180..180
-#	#VGridLon, VGridLat = np.meshgrid(VLons, VLats) 							#disabled - only used for plotting		# regularly spaced 2D grid of GFS V component values
-#
-#	testLoc = np.array([float(args["convLatLon"][1]),float(args["convLatLon"][0])])
-#	gridTestLoc = np.around(testLoc*2)/2										# round to the nearest 1.0 for GFS3, 0.5 for GFS4
-#	testLocIdx= np.where(gridTestLoc[1]==UGridLat)[0][0], np.where(gridTestLoc[0]==UGridLon)[1][0]
-#	testValU = U[testLocIdx[0]-1: testLocIdx[0] + 2,testLocIdx[1]-1: testLocIdx[1] + 2]			# 3x3 sample of U values centered about our closest vector
-#	testValV = V[testLocIdx[0]-1: testLocIdx[0] + 2,testLocIdx[1]-1: testLocIdx[1] + 2]			# 3x3 sample of V values centered about our closest vector
-#	gausKern3x3sig1 = np.array([[0.077847,0.123317,0.077847],\
-#							[0.123317,0.195346,0.123317],\
-#							[0.077847,0.123317,0.077847]])
-#	testLocBearing = np.arctan2(np.sum(testValV*gausKern3x3sig1), np.sum(testValU*gausKern3x3sig1))
-#	testLocMag = np.sqrt(np.sum(testValV*gausKern3x3sig1)**2 + np.sum(testValU*gausKern3x3sig1)**2)
-#
-#	return np.array([testLocBearing*180/np.pi,testLocMag])
-
-
-#GFSGrbs = pygrib.open(args["GFS"])
-#compLayers = [(192,193),(176,177),(144,145),(109,110),(264,265)]
-
-#layersVals = []
-#for layer in tqdm(compLayers, desc='Finding Vcl: '):
-#	layersVals.append(get_levels_vectors(layer[0],layer[1]))
-#layerMeans = np.mean(np.array(layersVals[:4]),axis=0)
-#print('Layer Values: ',layersVals)
-#print('Layer Means: ',layerMeans)
-#print('Layer Means adj: ',layerMeans - np.array([layersVals[4][0],0]))
-
 def calculate_radar_stats(d, filepath):
 
 	offset = np.array([float(args["sensorLatLon"][0]) - float(args["convLatLon"][0]),
@@ -116,6 +71,7 @@ def calculate_radar_stats(d, filepath):
 	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
 	testLocBearing = -.5
 
+	roi = None		#debug
 	roi = RadarROI(file=filepath,sensorLocation=np.array([0.0,0.0]))
 	roi.calc_cartesian()
 	roi.shift_cart_orgin(offset=offset)
@@ -123,8 +79,7 @@ def calculate_radar_stats(d, filepath):
 	reflectThresh = 139												# return strength threshold (139.0 = 35dbz)		
 	roi.find_mean_reflectivity(reflectThresh)
 	roi.find_area(reflectThresh)
-	#print(f'roi datetime: {roi.datetime} meanRef {roi.find_mean_reflectivity(reflectThresh)}')
-	d[roi.datetime] = [roi.datetime,roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,roi.area,roi.meanReflectivity]
+	d[roi.datetime] = [roi.datetime,roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,roi.polyVerts,offset,roi.area,roi.meanReflectivity]
 
 def main():
 	manager = mp.Manager()
@@ -141,24 +96,20 @@ def main():
 		job.get()
 
 	pool.close()
-	print('here0')
 	pool.join()
 
-	columns =['datetime','indices', 'xlocs', 'ylocs', 'data', 'areaValue', 'refValue']
+	columns =['datetime','indices', 'xlocs', 'ylocs', 'data', 'polyVerts', 'offset', 'areaValue', 'refValue']
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)
 	resultsDF['datetime'] = pd.to_datetime(resultsDF.datetime)
 	resultsDF.sort_values(by='datetime', inplace=True)
-	print('here2')
 	#resultsDF.to_csv(args["output"] + '.csv', index = False)
 	print(resultsDF[['areaValue','refValue']])
-	#print(resultsDF)
 
 	# --- Plot time series---
 	fig, axes = plt.subplots(8, 8, figsize=(30, 30))
 	date_format = mpl_dates.DateFormatter('%H:%Mz')
 
-	for i, (dt, record) in enumerate(resultsDF.iterrows()):
-		print(i)
+	for i, (dt, record) in tqdm(enumerate(resultsDF.iterrows()), desc='Plotting Slices'):
 		plotx = i%8
 		ploty = int(i/8)
 
@@ -171,35 +122,33 @@ def main():
 		#indices = record['data'][2]
 		#loc = record['data'][0]
 		#tempdata[tempdata == 0] = ma.masked
-		print(f'entering plot 1 {i}')
 
 		# x and y refer to xlocs and ylocs ... we need to get these passed. 
-		axes[ploty][plotx].pcolormesh(record['xlocs'][record['indices']],record['ylocs'][record['indices']], tempdata, norm=norm, cmap=cmap)
+		axes[ploty][plotx].pcolormesh(record['xlocs'],record['ylocs'], tempdata, norm=norm, cmap=cmap)
 		axes[ploty][plotx].set_aspect('equal', 'datalim')
 		axes[ploty][plotx].set_xlim(negXLim, posXLim)
 		axes[ploty][plotx].set_ylim(negYLim, posYLim)
-		print('entering plot 2')
-		pVXs, pVYs = zip(*polyVerts)								# create lists of x and y values for transformed polyVerts
+		pVXs, pVYs = zip(*record['polyVerts'])								# create lists of x and y values for transformed polyVerts
 		axes[ploty][plotx].plot(pVXs,pVYs)
-		axes[ploty][plotx].plot(offset[1], offset[0], 'o')			# Location of the radar
+		axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
 		axes[ploty][plotx].plot(0.0, 0.0, 'bx')						# Location of the convection
 		add_timestamp(axes[ploty][plotx], record['datetime'], y=0.02, high_contrast=True)
 		axes[ploty][plotx].tick_params(axis='both', which='both')
 
-	print('entering plot 3')
 	window = 5
-	yArea_av = movingaverage(resultsDF['resArea'].to_list(), window)							# Create moving averages for time series'
-	yRef_av = movingaverage(resultsDF['resRef'].to_list(), window)
+	yArea_av = movingaverage(resultsDF['areaValue'].to_list(), window)							# Create moving averages for time series'
+	yRef_av = movingaverage(resultsDF['refValue'].to_list(), window)
 
-	axes[-1][-2].plot_date(datetimes,resArea,linestyle='solid')
-	axes[-1][-2].plot_date(datetimes[window:-window], yArea_av[window:-window],"r", linestyle='solid')
-	axes[-1][-2].xaxis.set_major_formatter(date_format)
+	#TODO: Fix time series plots (commented out)
+	#axes[-1][-2].plot_date(record['datetime'],record['areaValue'],linestyle='solid')
+	#axes[-1][-2].plot_date(datetimes[window:-window], yArea_av[window:-window],"r", linestyle='solid')
+	#axes[-1][-2].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-2].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-2].set_title('Area ≥ 35dbz')
 
-	axes[-1][-1].plot_date(datetimes,resRef,linestyle='solid')
-	axes[-1][-1].plot_date(datetimes[window:-window], yRef_av[window:-window],"r", linestyle='solid')
-	axes[-1][-1].xaxis.set_major_formatter(date_format)
+	#axes[-1][-1].plot_date(datetimes,resRef,linestyle='solid')
+	#axes[-1][-1].plot_date(datetimes[window:-window], yRef_av[window:-window],"r", linestyle='solid')
+	#axes[-1][-1].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-1].set_title('Mean of Reflectivity ≥ 35dbz')
 	# TODO: convert y axis to dbz

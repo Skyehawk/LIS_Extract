@@ -98,16 +98,18 @@ class RadarROI(RadarSlice):
         rDataMaskedClip = self.data[self.mask]
         rDataMaskClip = grid[self.mask]
         self.clippedData = rDataMaskedClip*rDataMaskClip
+        self.xlocs = self.xlocs[self.mask]
+        self.ylocs = self.ylocs[self.mask]
         return self.clippedData
 
     #Override
     def find_area(self, reflectThresh=0.0):
-        self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
+        self.area = sum(map(lambda i: i >= reflectThresh, self.clippedData.flatten()))
         return self.area
 
     #Override
     def find_mean_reflectivity(self,reflectThresh=0.0):
-        self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.data.flatten()))))
+        self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.meanReflectivity
 
     #Override

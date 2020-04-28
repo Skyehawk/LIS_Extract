@@ -159,10 +159,8 @@ def calculate_radar_stats(d, filepath):
 	rDataMaskedClip = rDataMaskedClip*rDataMaskClip
 	resArea = sum(map(lambda i: i >= reflectThresh, rDataMaskedClip.flatten()))
 	resRef = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, rDataMaskedClip.flatten()))))
-	x = list(xlocs)
-	y = list(ylocs)
 
-	d[f.metadata['prod_time']] = [f.metadata['prod_time'],indices,x,y,rDataMaskedClip,resArea,resRef]
+	d[f.metadata['prod_time']] = [f.metadata['prod_time'],xlocs[indices],ylocs[indices],rDataMaskedClip,resArea,resRef]
 
 def main():
 	manager = mp.Manager()
@@ -182,7 +180,7 @@ def main():
 	print('here0')
 	pool.join()
 
-	columns =['datetime','indices', 'xlocs', 'ylocs', 'data', 'areaValue', 'refValue']
+	columns =['datetime', 'xlocs', 'ylocs', 'data', 'areaValue', 'refValue']
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)
 	resultsDF['datetime'] = pd.to_datetime(resultsDF.datetime)
 	resultsDF.sort_values(by='datetime', inplace=True)
