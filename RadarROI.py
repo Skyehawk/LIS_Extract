@@ -8,6 +8,7 @@
 # 2020-04-28
 #
 
+# --- Imports ---
 import numpy as np
 from matplotlib.path import Path
 from Transformation_Matrix_2 import comp_matrix
@@ -125,12 +126,12 @@ class RadarROI(RadarSlice):
         return self.area
 
     #Override
-    def find_mean_reflectivity(self,reflectThresh=0.0):
+    def find_mean_reflectivity(self, reflectThresh=0.0):
         self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.meanReflectivity
 
     #Override
-    def find_variance_reflectivity(self,reflectThresh=0.0):
+    def find_variance_reflectivity(self, reflectThresh=0.0):
         self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
 

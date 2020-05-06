@@ -8,6 +8,7 @@
 # 2020-04-28
 #
 
+# --- Imports ---
 import warnings
 
 import numpy as np
@@ -135,11 +136,11 @@ class RadarSlice(object):
         self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
         return self.area
 
-    def find_mean_reflectivity(self,reflectThresh=0.0):
+    def find_mean_reflectivity(self, reflectThresh=0.0):
         self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.data.flatten()))))
         return self.meanReflectivity
 
-    def find_variance_reflectivity(self,reflectThresh=0.0):
+    def find_variance_reflectivity(self, reflectThresh=0.0):
         self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
 

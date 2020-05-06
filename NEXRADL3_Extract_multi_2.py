@@ -9,10 +9,8 @@
 #
 # Developed as a tool to extract values from NEXRAD inputs for Thesis work
 # 
-# Use:	Linux call:  python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/NEXRADL3_Extract.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2016/20160715_2/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_2 -c 41.55 -102.13 -s 41.95778 -100.57583
-#		
-#
-# Notes: Output currently .csv & ascii (in .txt format) files
+# Use:	Linux call:  python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/NEXRADL3_Extract_multi_2.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2016/20160715_2/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_2 -c 41.55 -102.18 -s 41.95778 -100.57583
+
 
 # --- Imports ---
 import os
@@ -63,11 +61,12 @@ def calculate_radar_stats(d, filepath):
 	offset = np.array([float(args["sensorLatLon"][0]) - float(args["convLatLon"][0]),
 						float(args["sensorLatLon"][1]) - float(args["convLatLon"][1])])
 	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
-	testLocBearing = -.5
+	testLocBearing = -.425
 
-	roi = RadarROI(file=filepath,sensorLocation=np.array([0.0,0.0]))
+	roi = RadarROI(file=filepath, sensorLocation=np.array([0.0,0.0]))
 	roi.calc_cartesian()
 	roi.shift_cart_orgin(offset=offset)
+	#roi.extractROI(baseBearing=testLocBearing)  #(baseCrds=baseCrds, baseBearing=testLocBearing)
 	roi.extractROI(baseCrds=baseCrds, baseBearing=testLocBearing)
 	reflectThresh = 139.0												# return strength threshold (139.0 = 35dbz)		
 	roi.find_area(reflectThresh)
@@ -96,8 +95,8 @@ def main():
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)
 	resultsDF['datetime'] = pd.to_datetime(resultsDF.datetime)
 	resultsDF.sort_values(by='datetime', inplace=True)
-	#resultsDF.to_csv(args["output"] + '.csv', index = False)
-	print(resultsDF[['areaValue','refValue']])
+	resultsDF.to_csv(args["output"] + '.csv', index = False)
+	print(resultsDF[['areaValue','refValue']].head(5))
 
 	# --- Plot time series---
 	fig, axes = plt.subplots(8, 8, figsize=(30, 30))
@@ -128,6 +127,7 @@ def main():
 
 	# pull data out of DF to make code cleaner
 	datetimes = resultsDF['datetime'].tolist()
+	elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))
 	areaValues = resultsDF['areaValue'].tolist()					# area ≥ 35dbz within ROI
 	refValues = resultsDF['refValue'].tolist()						# mean reflectivity ≥ 35dbz within ROI
 	varValues = resultsDF['varRefValue'].tolist()						# variance of mean reflectivity ≥ 35dbz within ROI
@@ -163,6 +163,7 @@ def main():
 
 	plt.tight_layout()
 	plt.savefig(args["output"] +'Nexrad.png') 						# Set the output file name
+	#plt.show()
 
 if __name__ == '__main__':
 	main()
