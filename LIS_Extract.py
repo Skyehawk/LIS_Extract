@@ -1,11 +1,11 @@
-# LIS Data Extract - v0.10
+# LIS Data Extract - v0.20
 # Python Version: 3.7.3
 #
 # Skye Leake
 # 2019-11-27
 #
 # Updated
-# 2020-03-24
+# 2020-05-27
 #
 # Developed as a tool to extract values from a grb file for overlay geostatistical analysis
 # 
@@ -18,6 +18,7 @@
 import os
 import argparse
 import numpy as np
+import datetime
 import pygrib
 import matplotlib.pyplot as plt						# v. 3.1.0
 import matplotlib.colors as colors
@@ -28,6 +29,10 @@ from skimage.transform import rotate				# v. 0.15.0
 
 from Transformation_Matrix_2 import comp_matrix
 from Gauss_Map import gauss_map 
+
+# Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # --- Construct argument parse to parse the arguments (input dates) ---
 ap = argparse.ArgumentParser()
@@ -40,8 +45,12 @@ outputPath = args["output"]
 
 # --- Read in 3 datasets: 1) LIS Data for layer of intrest 2) GFS U (Easting) component of wind velocity 3) GFS V (Northing) component of wind velocity ---
 LISGrbs = pygrib.open(args["LIS"])
-LISGrb = LISGrbs.select()[32]												# index positions of relevent data
-print("\nLIS Data: " + str(LISGrb))
+LISGrb = None
+if datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
+	LISGrb = LISGrbs.select()[27]											# index positions of relevent data
+else:
+	LISGrb = LISGrbs.select()[32]
+#print("\nLIS Data: " + str(LISGrb))
 LISData = LISGrb.values														# array containing gridded LIS values
 
 GFSGrbs = pygrib.open(args["GFS"])
@@ -78,11 +87,13 @@ gausKern3x3sig1 = np.array([[0.077847,0.123317,0.077847],\
 testLocBearing = np.arctan2(np.sum(testValV*gausKern3x3sig1), np.sum(testValU*gausKern3x3sig1))
 testLocMag = np.sqrt(np.sum(testValV*gausKern3x3sig1)**2 + np.sum(testValU*gausKern3x3sig1)**2)
 
+print('\n')
+print(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d'))
 print("input Loc: ", testLoc)
 print("Nearest GFS Vector Loc: ", gridTestLoc)
 print("Nearest Vector --> Bearing: %3.2f from East (CCW) @ %3.1f knots (3x3 kernal gausian avg (sigma=1.0))" % (testLocBearing* 180 / np.pi, testLocMag))
-print("Variance of wind components --> U: %3.2f  V: %3.2f" % (np.var(U),np.var(V)))
-print("Variance of wind direction --> %3.2f " % (np.var(np.arctan2(testValV,testValU)*180/np.pi)))
+print("Std Dev of wind components (not weighted) --> U: %3.2f  V: %3.2f (knots)" % (np.nanstd(U),np.nanstd(V)))
+print("Std Dev of wind direction (not weighted) --> %3.2f (dec deg ccw from East)" % (np.std(np.arctan2(testValV,testValU)*180/np.pi)))
 
 # --- Calculate coordinates bounding init point based on surface vector(s) (radians) ---
 baseCrds = np.array([(1.0,1.0,0.0,1.0),(1.0,-1.0,0.0,1.0),(-1.0,-1.0,0.0,1.0),(-1.0,1.0,0.0,1.0),(1.0,1.0,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
@@ -111,7 +122,7 @@ LISDataMaskedClip = LISDataMaskedClip*LISDataMaskClip
 LISDataMaskedClip[LISDataMaskedClip > 100] = np.nan									# Replace our no data "9999" values with "nan"
 LISAligned = rotate(LISDataMaskedClip, (testLocBearing * 180 / np.pi)-(90), resize=True, order=0)		# rotate about center with nearest neighbor parameters, offest 0deg to 90 (top-down wind vector)
 LISAligned[LISAligned == 0.0] = np.nan							# Replace out of ROI data w/ "nan"
-print('Alignment Checksum - Masked (unrotated) %9.0f Aligned (rotated) %9.0f' %(np.nansum(LISDataMaskedClip),np.nansum(LISAligned)))
+#print('Alignment Checksum - Masked (unrotated) %9.0f Aligned (rotated) %9.0f' %(np.nansum(LISDataMaskedClip),np.nansum(LISAligned)))
 LISAligned = LISAligned[int((LISAligned.shape[0]-68)/2):int(((LISAligned.shape[0]-68)/2)+68)\
 						,int((LISAligned.shape[1]-68)/2):int(((LISAligned.shape[1]-68)/2)+68)]
 
@@ -119,14 +130,17 @@ LISAligned = LISAligned[int((LISAligned.shape[0]-68)/2):int(((LISAligned.shape[0
 LISAlignedMeanDep = LISAligned - np.nanmean(LISAligned)			# calculate our mean departures
 
 gmap=gauss_map(size_x=np.shape(LISAligned)[0], size_y = np.shape(LISAligned)[1], sigma_x=10, sigma_y=20)
-LISAlignedWeighted = abs(LISAlignedMeanDep * gmap)				# apply weaghted dist. to our mean departures
-coeffOfSpatialDependency = np.nanmean(LISAlignedWeighted)
-print( "Weighted coeff %2.8f" %coeffOfSpatialDependency)
+LISAlignedWeighted = LISAlignedMeanDep * gmap				# apply weaghted dist. to our mean departures
 
 LISGradient = np.gradient(LISAligned, axis=1)
 
+grad_Dep_Val_Sq_Weighted = np.nansum(((1-np.abs(LISGradient))**2)* (LISAlignedMeanDep**2) * gmap) #np.nanmean(LISAlignedWeighted)
+print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
+f_o = open(args["output"] + 'log_stats_area.txt', 'a')
+f_o.write(str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) + '\t' + str(np.nanstd(LISAlignedMeanDep)) + '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
+
 # --- Plot data and create output ---
-vmin, vmax = 5, 25
+vmin, vmax = 5, 25  # 0,100  #should probally set this to the interquartile range
 vadj = .101
 cmap = plt.cm.twilight_shifted_r
 cmap2 = plt.cm.bone_r
@@ -153,7 +167,7 @@ m = Basemap( projection='lcc', resolution='c', rsphere=(6378137.00,6356752.3142)
 #			urcrnrlat=50., lat_1=33., lat_2=45., lat_0=39., lon_0=-96., ax=axs[0])
 
 #m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/States_21basic/states', 'states')
-#m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/tl_2017_us_county/tl_2017_us_county','tl_2017_us_county')
+m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/tl_2017_us_county/tl_2017_us_county','tl_2017_us_county')
 LISPlotX, LISPlotY = m(LISGridLon, LISGridLat)
 m.drawparallels(np.arange(-90.,120.,1),labels=[1,0,0,0])
 m.drawmeridians(np.arange(-120.,-80.,1),labels=[0,0,0,1])

@@ -86,16 +86,16 @@ class RadarROI(RadarSlice):
         self._tm = value
 
     #Override
-    def __init__(self, file, sensorLocation):
-        super(RadarROI, self).__init__(file, sensorLocation)
+    def __init__(self, file, sensorData=None):
+        super(RadarROI, self).__init__(file, sensorData)
 
     def extractROI(self, baseCrds=None, baseBearing=0.0):
         if baseCrds is None:
-            baseCrds = np.array([(1.0,1.0,0.0,1.0),
-                        (1.0,-1.0,0.0,1.0),
-                        (-1.0,-1.0,0.0,1.0),
-                        (-1.0,1.0,0.0,1.0),
-                        (1.0,1.0,0.0,1.0)])    #crds of bounding box (Gridded degrees)
+            baseCrds = np.array([(1.5,1.0,0.0,1.0),
+                        (1.5,-1.0,0.0,1.0),
+                        (-0.5,-1.0,0.0,1.0),
+                        (-0.5,1.0,0.0,1.0),
+                        (1.5,1.0,0.0,1.0)])    #crds of bounding box (Gridded degrees)
         
         self.tm = comp_matrix(scale=np.ones(3), rotation=np.array([0,0, baseBearing]), 
                         shear=np.ones(3), translation=np.zeros(3))
