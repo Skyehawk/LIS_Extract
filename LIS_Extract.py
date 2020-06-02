@@ -47,7 +47,7 @@ outputPath = args["output"]
 LISGrbs = pygrib.open(args["LIS"])
 LISGrb = None
 if datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
-	LISGrb = LISGrbs.select()[27]											# index positions of relevent data
+	LISGrb = LISGrbs.select()[27]											# index positions of relevent data (pre 2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
 else:
 	LISGrb = LISGrbs.select()[32]
 #print("\nLIS Data: " + str(LISGrb))
@@ -132,19 +132,19 @@ LISAlignedMeanDep = LISAligned - np.nanmean(LISAligned)			# calculate our mean d
 gmap=gauss_map(size_x=np.shape(LISAligned)[0], size_y = np.shape(LISAligned)[1], sigma_x=10, sigma_y=20)
 LISAlignedWeighted = LISAlignedMeanDep * gmap				# apply weaghted dist. to our mean departures
 
-LISGradient = np.gradient(LISAligned, axis=1)
+LISGradient2d = np.gradient(LISAligned)
+LISGradient2dMag = np.sqrt(LISGradient2d[0]**2 + LISGradient2d[0]**2)
 
-grad_Dep_Val_Sq_Weighted = np.nansum(((1-np.abs(LISGradient))**2)* (LISAlignedMeanDep**2) * gmap) #np.nanmean(LISAlignedWeighted)
+grad_Dep_Val_Sq_Weighted = np.nansum((LISGradient2dMag * LISAlignedMeanDep*gmap)**2)
 print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
-f_o = open(args["output"] + 'log_stats_area.txt', 'a')
-f_o.write(str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) + '\t' + str(np.nanstd(LISAlignedMeanDep)) + '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
+#f_o = open(args["output"] + 'log_stats_area.txt', 'a')
+#f_o.write(str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) + '\t' + str(np.nanstd(LISAlignedMeanDep)) + '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
 
 # --- Plot data and create output ---
-vmin, vmax = 5, 25  # 0,100  #should probally set this to the interquartile range
-vadj = .101
+vmin, vmax = 0, 100  # 0,100  #should probally set this to the interquartile range
 cmap = plt.cm.twilight_shifted_r
 cmap2 = plt.cm.bone_r
-normRawData = colors.SymLogNorm(linthresh=0.1, linscale=1, vmin=vmin, vmax=vmax)
+normRawData = colors.SymLogNorm(linthresh=0.1, linscale=1)#, vmin=vmin, vmax=vmax)				#Vmin & Vmax disabled
 normDep = colors.SymLogNorm(linthresh=0.1, linscale=1, vmin=np.nanmin(LISAlignedMeanDep), vmax=np.nanmax(LISAlignedMeanDep))
 #normSlope = colors.LogNorm(vmin=0, vmax=np.nanmax(np.abs(LISGradient)))
 extent = [-1, 1, -1, 1]
@@ -167,7 +167,7 @@ m = Basemap( projection='lcc', resolution='c', rsphere=(6378137.00,6356752.3142)
 #			urcrnrlat=50., lat_1=33., lat_2=45., lat_0=39., lon_0=-96., ax=axs[0])
 
 #m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/States_21basic/states', 'states')
-m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/tl_2017_us_county/tl_2017_us_county','tl_2017_us_county')
+#m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/tl_2017_us_county/tl_2017_us_county','tl_2017_us_county')
 LISPlotX, LISPlotY = m(LISGridLon, LISGridLat)
 m.drawparallels(np.arange(-90.,120.,1),labels=[1,0,0,0])
 m.drawmeridians(np.arange(-120.,-80.,1),labels=[0,0,0,1])
@@ -214,12 +214,20 @@ axes[2][1].yaxis.tick_right()
 sp30 = axes[3][0].imshow(z0, cmap=cmap, extent=extent, aspect=1/10, origin='lower', norm=normDep)
 axes[3][0].set_yticks([])
 
-# --- Plot wind orientated data (variance gaussian weighted) with axis averages ---
-z = LISGradient
+# --- Plot wind orientated data (variance Gradient) with axis averages ---
+z = LISGradient2dMag * gmap
+
 z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
 z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
 sp22 = axes[2][2].imshow(z, cmap=cmap2, extent=extent, aspect=1, origin='lower')
 plt.colorbar(sp22, orientation='vertical', shrink=0.5, ax=axes[2][3])
+gradXs = np.linspace(-1.0,1.0,np.size(LISGradient2d[0],0))
+gradYs = np.linspace(-1.0,1.0,np.size(LISGradient2d[0],1))
+gradXLocs, gradYLocs = np.meshgrid(gradXs, gradYs)
+M = np.hypot(LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2])
+Q = axes[2][2].quiver(gradXLocs[::2,::2], gradYLocs[::2,::2], LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2], pivot="tip", angles='xy')#, scale=0.5)
+qk = axes[2][2].quiverkey(Q, 0.9,0.9,1, r'$1 \frac{kt}{hr}$', labelpos='E', coordinates='figure')
+#axes[2][2].scatter(gradXLocs[::2,::2], gradYLocs[::2,::2], color='0.5', s=1)
 
 axes[2][2].xaxis.tick_bottom()
 axes[2][2].axhline(y=0, color='k')
