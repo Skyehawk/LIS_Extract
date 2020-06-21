@@ -5,11 +5,11 @@
 # 2019-11-27
 #
 # Updated
-# 2020-05-27
+# 2020-05-29
 #
 # Developed as a tool to extract values from a grb file for overlay geostatistical analysis
 # 
-# Use:	Linux call: python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/LIS_Extract.py -l /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/SPoRT_LIS/SPoRT_LIS/2016/sportlis_daily_forSkye_20160715/201607/LIS_HIST_201607150000.d01.grb -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_test -c 42.087 -102.882
+# Use:	Linux call: python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/LIS_Extract_Temps_Plot.py -l /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/SPoRT_LIS/SPoRT_LIS/2016/sportlis_daily_forSkye_20160715/201607/LIS_HIST_201607150000.d01.grb -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_test -c 42.087 -102.882
 #		
 #
 # Notes: Output currently .csv & ascii (in .txt format) files
@@ -46,12 +46,10 @@ outputPath = args["output"]
 # --- Read in 3 datasets: 1) LIS Data for layer of intrest 2) GFS U (Easting) component of wind velocity 3) GFS V (Northing) component of wind velocity ---
 LISGrbs = pygrib.open(args["LIS"])
 LISGrb = None
-if datetime.datetime.strptime(str(LISGrbs.select()[16].dataDate), '%Y%m%d') < datetime.datetime(2013, 1, 1):								# LIS grbs fields were expanded in 2013 & 2015
-	LISGrb = LISGrbs.select()[16]											# index positions of relevent data (pre 2012 is 16, 2013-2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
-elif datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
-	LISGrb = LISGrbs.select()[27]											
+if datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
+	LISGrb = LISGrbs.select()[13]											# index positions of relevent data (pre 2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
 else:
-	LISGrb = LISGrbs.select()[32]
+	LISGrb = LISGrbs.select()[13]
 #print("\nLIS Data: " + str(LISGrb))
 LISData = LISGrb.values														# array containing gridded LIS values
 
@@ -118,8 +116,10 @@ i, j = np.where(grid)
 indices = np.meshgrid(np.arange(min(i), max(i) + 1), np.arange(min(j), max(j) + 1), indexing='ij')
 LISDataMaskedClip = LISData[indices]
 LISDataMaskClip = grid[indices]
+#print("dimsPreRot", LISDataMaskedClip.shape)
+#print("maskDimsPreRot", LISDataMaskClip.shape)
 LISDataMaskedClip = LISDataMaskedClip*LISDataMaskClip
-LISDataMaskedClip[LISDataMaskedClip > 100] = np.nan									# Replace our no data "9999" values with "nan"
+LISDataMaskedClip[LISDataMaskedClip > 400] = np.nan									# Replace our no data "9999" values with "nan"
 LISAligned = rotate(LISDataMaskedClip, (testLocBearing * 180 / np.pi)-(90), resize=True, order=0)		# rotate about center with nearest neighbor parameters, offest 0deg to 90 (top-down wind vector)
 LISAligned[LISAligned == 0.0] = np.nan							# Replace out of ROI data w/ "nan"
 #print('Alignment Checksum - Masked (unrotated) %9.0f Aligned (rotated) %9.0f' %(np.nansum(LISDataMaskedClip),np.nansum(LISAligned)))
@@ -140,8 +140,8 @@ print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
 f_o = open(args["output"] + 'log_stats_area.txt', 'a')
 f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
 	+ '\t' + str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
-	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS Aligned data
-	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS ALigned data
+	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS aligned data
+	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS aligned data
 	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned Data
 	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departues
 	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departues
@@ -149,18 +149,18 @@ f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d'))
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) 							# ratio of LIS Aligned departures upwind:downwind
 	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# ratio of weighted LIS Aligned data upwind:downwind
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# ratio of weighted LIS Aligned departures upwind:downwind
-	+ '\t' + str(np.nansum(LISAligned[35:,:]) - np.nansum(LISAligned[:35,:])) 											# difference of LIS Aligned data upwind:downwind
-	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
-	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
-	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) - np.nansum(LISAligned[:35,:])) 											# differece of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# differece of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# differece of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# differece of weighted LIS Aligned departures upwind:downwind
 	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
 f_o.close()
 
 # --- Plot data and create output ---
-vmin, vmax = np.nanmin(LISAligned), np.nanmax(LISAligned) #0, 100  # 0,100  #should probally set this to the interquartile range
-cmap = plt.cm.twilight_shifted_r
+vmin, vmax = 0, 400  # 0,400  #should probally set this to the interquartile range
+cmap = plt.cm.twilight_shifted
 cmap2 = plt.cm.bone_r
-normRawData = colors.SymLogNorm(linthresh=0.1, linscale=1, vmin=vmin, vmax=vmax)
+normRawData = colors.SymLogNorm(linthresh=0.1, linscale=1)#, vmin=vmin, vmax=vmax)				#Vmin & Vmax disabled
 normDep = colors.SymLogNorm(linthresh=0.1, linscale=1, vmin=np.nanmin(LISAlignedMeanDep), vmax=np.nanmax(LISAlignedMeanDep))
 #normSlope = colors.LogNorm(vmin=0, vmax=np.nanmax(np.abs(LISGradient)))
 extent = [-1, 1, -1, 1]
@@ -232,6 +232,7 @@ axes[3][0].set_yticks([])
 
 # --- Plot wind orientated data (variance Gradient) with axis averages ---
 z = LISGradient2dMag
+
 z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
 z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
 sp22 = axes[2][2].imshow(z, cmap=cmap2, extent=extent, aspect=1, origin='lower')
@@ -242,7 +243,7 @@ gradXLocs, gradYLocs = np.meshgrid(gradXs, gradYs)
 M = np.hypot(LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2])
 Q = axes[2][2].quiver(gradXLocs[::2,::2], gradYLocs[::2,::2], LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2], pivot="tip", angles='xy')#, scale=0.5)
 #qk = axes[2][2].quiverkey(Q, 0.9,0.9,1, r'$1 \frac{kt}{hr}$', labelpos='E', coordinates='figure')
-#axes[2][2].scatter(gradXLocs[::2,::2], gradYLocs[::2,::2], color='0.5', s=1)				# plot points at tip of vector
+#axes[2][2].scatter(gradXLocs[::2,::2], gradYLocs[::2,::2], color='0.5', s=1)
 
 axes[2][2].xaxis.tick_bottom()
 axes[2][2].axhline(y=0, color='k')
@@ -257,9 +258,9 @@ axes[3][2].set_yticks([])
 
 plt.suptitle('SPoRT LIS - Orientated W/ GFS4 10 m Winds' + os.linesep + \
 			'Data Centered On: ' + str(args["lat_lon"]) + os.linesep + \
-			'Date: ' + datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d').strftime("%m/%d/%Y"), fontsize=14)
+			'Date: ' + str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')), fontsize=14)
 axes[0][0].set_title('RSM 0-10cm (%)')
-axes[0][2].set_title('RSM 0-10cm (%) - Surface Wind Orientated')
+axes[0][2].set_title('Surface Temp (K) - Surface Wind Orientated')
 axes[0][2].set_ylabel('degrees downwind')
 axes[0][2].set_xlabel('degrees cross-wind')
 axes[0][3].set_ylabel('degrees downwind mean')
@@ -275,7 +276,7 @@ axes[1][3].axis('off')
 axes[3][1].axis('off')
 axes[3][3].axis('off')
 
-plt.savefig(args["output"] +'.png') # Set the output file name
+plt.savefig(args["output"] +'Temps.png') # Set the output file name
 
 # --- Save output as ascii format in .txt file ---
 print("Saving .ascii ...")
@@ -294,6 +295,6 @@ toWrite = 'ncols ' + str(ncols) +\
 			'\ncellsize ' + str(cellsize) +\
 			'\nnodata_value ' + str(nodata_value) + '\n' +\
 			' '.join(map(str, values))
-ascii_file = open(args["output"] +'.txt', "w")
+ascii_file = open(args["output"] +'Temps.txt', "w")
 ascii_file.write(toWrite)
 ascii_file.close()

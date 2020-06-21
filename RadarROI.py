@@ -8,6 +8,7 @@
 # 2020-04-28
 #
 
+# --- Imports ---
 import numpy as np
 from matplotlib.path import Path
 from Transformation_Matrix_2 import comp_matrix
@@ -85,18 +86,18 @@ class RadarROI(RadarSlice):
         self._tm = value
 
     #Override
-    def __init__(self, file, sensorLocation):
-        super(RadarROI, self).__init__(file, sensorLocation)
+    def __init__(self, file, sensorData=None):
+        super(RadarROI, self).__init__(file, sensorData)
 
-    def extractROI(self, baseCrds=None, baseBearing=0.0):
+    def extractROI(self, baseCrds=None, baseBearing=0.0, scaleFactor=1.0):
         if baseCrds is None:
-            baseCrds = np.array([(1.0,1.0,0.0,1.0),
-                        (1.0,-1.0,0.0,1.0),
-                        (-1.0,-1.0,0.0,1.0),
-                        (-1.0,1.0,0.0,1.0),
-                        (1.0,1.0,0.0,1.0)])    #crds of bounding box (Gridded degrees)
+            baseCrds = np.array([(1.5,1.0,0.0,1.0),
+                        (1.5,-1.0,0.0,1.0),
+                        (-0.5,-1.0,0.0,1.0),
+                        (-0.5,1.0,0.0,1.0),
+                        (1.5,1.0,0.0,1.0)])    #default crds of bounding box (Gridded degrees)
         
-        self.tm = comp_matrix(scale=np.ones(3), rotation=np.array([0,0, baseBearing]), 
+        self.tm = comp_matrix(scale=np.ones(3)*scaleFactor, rotation=np.array([0,0, baseBearing]), 
                         shear=np.ones(3), translation=np.zeros(3))
 
         self.polyVerts = self.tm.dot(baseCrds.T).T[:,:2]    # Apply transformation Matrix, remove padding, and re-transpose
@@ -125,12 +126,12 @@ class RadarROI(RadarSlice):
         return self.area
 
     #Override
-    def find_mean_reflectivity(self,reflectThresh=0.0):
+    def find_mean_reflectivity(self, reflectThresh=0.0):
         self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.meanReflectivity
 
     #Override
-    def find_variance_reflectivity(self,reflectThresh=0.0):
+    def find_variance_reflectivity(self, reflectThresh=0.0):
         self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
 

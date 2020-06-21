@@ -37,8 +37,8 @@ outputPath = args["output"]
 grib = args["input"] # Set the file name of your input GRIB file
 grbs = pygrib.open(grib)
 
-#grb = grbs.select()[32] #RSM 0-10 in LIS (9 is VSM0-10)
-grb = grbs.select()[32]
+#grb = grbs.select()[32] #RSM 0-10 in LIS (9 is VSM0-10) (for dates 2015 & after, before this it is idx position 15)
+grb = grbs.select()[15]
 print("\nData: " + str(grb))
 data = grb.values
 
@@ -69,7 +69,7 @@ x, y = m(grid_lon, grid_lat)
 
 cs = m.pcolormesh(x,y,data,shading='flat',cmap=plt.cm.gist_stern_r)
 
-m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/States_21basic/states', 'states')
+#m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/States_21basic/states', 'states')
 #m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/Canada/Canada', 'Canada')
 m.drawcoastlines()
 m.drawmapboundary()
