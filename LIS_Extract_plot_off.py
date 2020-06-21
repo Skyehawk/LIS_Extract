@@ -5,11 +5,11 @@
 # 2019-11-27
 #
 # Updated
-# 2020-05-27
+# 2020-05-29
 #
 # Developed as a tool to extract values from a grb file for overlay geostatistical analysis
 # 
-# Use:	Linux call: python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/LIS_Extract.py -l /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/SPoRT_LIS/SPoRT_LIS/2016/sportlis_daily_forSkye_20160715/201607/LIS_HIST_201607150000.d01.grb -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_test -c 42.087 -102.882
+# Use:	Linux call: python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/LIS_Extract_Temps_Plot.py -l /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/SPoRT_LIS/SPoRT_LIS/2016/sportlis_daily_forSkye_20160715/201607/LIS_HIST_201607150000.d01.grb -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_test -c 42.087 -102.882
 #		
 #
 # Notes: Output currently .csv & ascii (in .txt format) files
@@ -47,9 +47,9 @@ outputPath = args["output"]
 LISGrbs = pygrib.open(args["LIS"])
 LISGrb = None
 if datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
-	LISGrb = LISGrbs.select()[13]											# index positions of relevent data (pre 2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
+	LISGrb = LISGrbs.select()[27]											# index positions of relevent data (pre 2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
 else:
-	LISGrb = LISGrbs.select()[13]
+	LISGrb = LISGrbs.select()[32]
 #print("\nLIS Data: " + str(LISGrb))
 LISData = LISGrb.values														# array containing gridded LIS values
 
@@ -82,8 +82,8 @@ testLocIdx= np.where(gridTestLoc[1]==UGridLat)[0][0], np.where(gridTestLoc[0]==U
 testValU = U[testLocIdx[0]-1: testLocIdx[0] + 2,testLocIdx[1]-1: testLocIdx[1] + 2]			# 3x3 sample of U values centered about our closest vector
 testValV = V[testLocIdx[0]-1: testLocIdx[0] + 2,testLocIdx[1]-1: testLocIdx[1] + 2]			# 3x3 sample of V values centered about our closest vector
 gausKern3x3sig1 = np.array([[0.077847,0.123317,0.077847],\
-						[0.123317,0.195346,0.123317],\
-						[0.077847,0.123317,0.077847]])
+							[0.123317,0.195346,0.123317],\
+							[0.077847,0.123317,0.077847]])
 testLocBearing = np.arctan2(np.sum(testValV*gausKern3x3sig1), np.sum(testValU*gausKern3x3sig1))
 testLocMag = np.sqrt(np.sum(testValV*gausKern3x3sig1)**2 + np.sum(testValU*gausKern3x3sig1)**2)
 
@@ -138,39 +138,45 @@ grad_Dep_Val_Sq_Weighted = np.nansum((LISGradient2dMag * LISAlignedMeanDep * gma
 print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
 
 f_o = open(args["output"] + 'log_stats_area.txt', 'a')
-f_o.write(str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
-	+ '\t' + str(np.nanstd(LISAligned)) 							# std dev of LIS Aligned data
-	+ '\t' + str(np.nansum(LISAligned*gmap)) 						# weighted mean of LIS ALigned data
-	+ '\t' + str(np.nanmean(LISAligned)) 							# mean of LIS Aligned Data
-	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 						# std dev of LIS Aligned departues
-	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 				# weighted mean of LIS Aligned departues
-	+ '\t' + str(np.nanmean(LISAlignedMeanDep))						# mean of LIS Aligned departues
-	+ '\t' + str(np.nansum(LISAligned[35:,:]) / np.nansum(LISAligned[:35,:])) # ratio of LIS Aligned data upwind:downwind
-	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) # ratio of LIS Aligned departures upwind:downwind
-	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) # ratio of weighted LIS Aligned data upwind:downwind
-	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) # ratio of weighted LIS Aligned departures upwind:downwind
+f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
+	+ '\t' + str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
+	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS aligned data
+	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS aligned data
+	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned data
+	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departures
+	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departures
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) / np.nansum(LISAligned[:35,:])) 											# ratio of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) 							# ratio of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# ratio of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# ratio of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) - np.nansum(LISAligned[:35,:])) 											# difference of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
 	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
+f_o.close()
 
 # --- Plot data and create output ---
-###vmin, vmax = 0, 100  # 0,100  #should probally set this to the interquartile range
-###cmap = plt.cm.twilight_shifted_r
-###cmap2 = plt.cm.bone_r
-###normRawData = colors.SymLogNorm(linthresh=0.1, linscale=1)#, vmin=vmin, vmax=vmax)				#Vmin & Vmax disabled
-###normDep = colors.SymLogNorm(linthresh=0.1, linscale=1, vmin=np.nanmin(LISAlignedMeanDep), vmax=np.nanmax(LISAlignedMeanDep))
+'''
+vmin, vmax = 0, 100  # 0,100  #should probally set this to the interquartile range
+cmap = plt.cm.twilight_shifted
+cmap2 = plt.cm.bone_r
+normRawData = colors.SymLogNorm(linthresh=0.1, linscale=1)#, vmin=vmin, vmax=vmax)				#Vmin & Vmax disabled
+normDep = colors.SymLogNorm(linthresh=0.1, linscale=1, vmin=np.nanmin(LISAlignedMeanDep), vmax=np.nanmax(LISAlignedMeanDep))
 #normSlope = colors.LogNorm(vmin=0, vmax=np.nanmax(np.abs(LISGradient)))
-###extent = [-1, 1, -1, 1]
-###fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(14, 12), constrained_layout=True,
-###                         gridspec_kw={'width_ratios': [10, 1, 10, 1], 'height_ratios': [10, 1, 10, 1], 'wspace': 0.0, 'hspace': 0.0})
+extent = [-1, 1, -1, 1]
+fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(14, 12), constrained_layout=True,
+                         gridspec_kw={'width_ratios': [10, 1, 10, 1], 'height_ratios': [10, 1, 10, 1], 'wspace': 0.0, 'hspace': 0.0})
 
 #calculate the crds of our ROI for projecting the basemap
-###llcrnrlon= np.min(polyVerts[:,0] -.125)
-###llcrnrlat= np.min(polyVerts[:,1] -.125)
-###urcrnrlon= np.max(polyVerts[:,0] +.125)
-###urcrnrlat= np.max(polyVerts[:,1] +.125)
+llcrnrlon= np.min(polyVerts[:,0] -.125)
+llcrnrlat= np.min(polyVerts[:,1] -.125)
+urcrnrlon= np.max(polyVerts[:,0] +.125)
+urcrnrlat= np.max(polyVerts[:,1] +.125)
 
-###m = Basemap( projection='lcc', resolution='c', rsphere=(6378137.00,6356752.3142), 
-###			llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, llcrnrlat=llcrnrlat, 
-###			urcrnrlat=urcrnrlat, lat_1=33., lat_2=45., lat_0=39., lon_0=-96., ax=axes[0][0], fix_aspect=True)
+m = Basemap( projection='lcc', resolution='c', rsphere=(6378137.00,6356752.3142), 
+			llcrnrlon=llcrnrlon, urcrnrlon=urcrnrlon, llcrnrlat=llcrnrlat, 
+			urcrnrlat=urcrnrlat, lat_1=33., lat_2=45., lat_0=39., lon_0=-96., ax=axes[0][0], fix_aspect=True)
 
 # Entire roi:
 #m = Basemap( projection='lcc', resolution='c', rsphere=(6378137.00,6356752.3142), 
@@ -179,117 +185,118 @@ f_o.write(str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag)
 
 #m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/States_21basic/states', 'states')
 #m.readshapefile('/mnt/d/Libraries/Documents/Scripts/LIS_Plot/Test_Data/Aux_files/tl_2017_us_county/tl_2017_us_county','tl_2017_us_county')
-###LISPlotX, LISPlotY = m(LISGridLon, LISGridLat)
-###m.drawparallels(np.arange(-90.,120.,1),labels=[1,0,0,0])
-###m.drawmeridians(np.arange(-120.,-80.,1),labels=[0,0,0,1])
-###sp00 = m.pcolormesh(LISPlotX,LISPlotY,LISDataMasked,shading='flat', cmap=cmap, norm=normRawData)
-###UPlotX, UPlotY = m(UGridLon, UGridLat)
-###axes[0][0].barbs(UPlotX, UPlotY, U, V, pivot='tip', barbcolor='#333333')	
-###plt.colorbar(sp00, orientation='vertical', shrink=0.5, ax=axes[0][1])
+LISPlotX, LISPlotY = m(LISGridLon, LISGridLat)
+m.drawparallels(np.arange(-90.,120.,1),labels=[1,0,0,0])
+m.drawmeridians(np.arange(-120.,-80.,1),labels=[0,0,0,1])
+sp00 = m.pcolormesh(LISPlotX,LISPlotY,LISDataMasked,shading='flat', cmap=cmap, norm=normRawData)
+UPlotX, UPlotY = m(UGridLon, UGridLat)
+axes[0][0].barbs(UPlotX, UPlotY, U, V, pivot='tip', barbcolor='#333333')	
+plt.colorbar(sp00, orientation='vertical', shrink=0.5, ax=axes[0][1])
 
 #plot the distribution of RSM values
 #axes[1][0].hist(LISAligned.flatten(), bins='fd')
 
 # --- Plot wind orientated data with axis averages ---
-###z = LISAligned
-###z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
-###z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
-###sp02 = axes[0][2].imshow(z, cmap=cmap, extent=extent, aspect=1, origin='lower', norm=normRawData)
-###axes[0][2].xaxis.tick_bottom()
-###axes[0][2].axhline(y=0, color='k')
-###axes[0][2].axvline(x=0, color='k')
-###plt.colorbar(sp02, orientation='vertical', shrink=0.5, ax=axes[0][3])
+z = LISAligned
+z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
+z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
+sp02 = axes[0][2].imshow(z, cmap=cmap, extent=extent, aspect=1, origin='lower', norm=normRawData)
+axes[0][2].xaxis.tick_bottom()
+axes[0][2].axhline(y=0, color='k')
+axes[0][2].axvline(x=0, color='k')
+plt.colorbar(sp02, orientation='vertical', shrink=0.5, ax=axes[0][3])
 
-###sp03 = axes[0][3].imshow(z1, cmap=cmap, extent=extent, aspect=10/1, origin='lower', norm=normRawData)
-###axes[0][3].set_xticks([])
-###axes[0][3].yaxis.tick_right()
+sp03 = axes[0][3].imshow(z1, cmap=cmap, extent=extent, aspect=10/1, origin='lower', norm=normRawData)
+axes[0][3].set_xticks([])
+axes[0][3].yaxis.tick_right()
 
-###sp12 = axes[1][2].imshow(z0, cmap=cmap, extent=extent, aspect=1/10, origin='lower', norm=normRawData)
-###axes[1][2].set_yticks([])
+sp12 = axes[1][2].imshow(z0, cmap=cmap, extent=extent, aspect=1/10, origin='lower', norm=normRawData)
+axes[1][2].set_yticks([])
 
 # --- Plot wind orientated data (variance) with axis averages ---
-###z = LISAlignedMeanDep
-###z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
-###z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
+z = LISAlignedMeanDep
+z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
+z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
 
-###sp20 = axes[2][0].imshow(z, cmap=cmap, extent=extent, aspect=1, origin='lower', norm=normDep)
-###axes[2][0].xaxis.tick_bottom()
-###axes[2][0].axhline(y=0, color='k')
-###axes[2][0].axvline(x=0, color='k')
-###plt.colorbar(sp20, orientation='vertical', shrink=0.5, ax=axes[2][1])
+sp20 = axes[2][0].imshow(z, cmap=cmap, extent=extent, aspect=1, origin='lower', norm=normDep)
+axes[2][0].xaxis.tick_bottom()
+axes[2][0].axhline(y=0, color='k')
+axes[2][0].axvline(x=0, color='k')
+plt.colorbar(sp20, orientation='vertical', shrink=0.5, ax=axes[2][1])
 
-###sp21 = axes[2][1].imshow(z1, cmap=cmap, extent=extent, aspect=10/1, origin='lower', norm=normDep)
-###axes[2][1].set_xticks([])
-###axes[2][1].yaxis.tick_right()
+sp21 = axes[2][1].imshow(z1, cmap=cmap, extent=extent, aspect=10/1, origin='lower', norm=normDep)
+axes[2][1].set_xticks([])
+axes[2][1].yaxis.tick_right()
 
-###sp30 = axes[3][0].imshow(z0, cmap=cmap, extent=extent, aspect=1/10, origin='lower', norm=normDep)
-###axes[3][0].set_yticks([])
+sp30 = axes[3][0].imshow(z0, cmap=cmap, extent=extent, aspect=1/10, origin='lower', norm=normDep)
+axes[3][0].set_yticks([])
 
 # --- Plot wind orientated data (variance Gradient) with axis averages ---
-###z = LISGradient2dMag * gmap
+z = LISGradient2dMag
 
-###z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
-###z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
-###sp22 = axes[2][2].imshow(z, cmap=cmap2, extent=extent, aspect=1, origin='lower')
-###plt.colorbar(sp22, orientation='vertical', shrink=0.5, ax=axes[2][3])
-###gradXs = np.linspace(-1.0,1.0,np.size(LISGradient2d[0],0))
-###gradYs = np.linspace(-1.0,1.0,np.size(LISGradient2d[0],1))
-###gradXLocs, gradYLocs = np.meshgrid(gradXs, gradYs)
-###M = np.hypot(LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2])
-###Q = axes[2][2].quiver(gradXLocs[::2,::2], gradYLocs[::2,::2], LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2], pivot="tip", angles='xy')#, scale=0.5)
+z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
+z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
+sp22 = axes[2][2].imshow(z, cmap=cmap2, extent=extent, aspect=1, origin='lower')
+plt.colorbar(sp22, orientation='vertical', shrink=0.5, ax=axes[2][3])
+gradXs = np.linspace(-1.0,1.0,np.size(LISGradient2d[0],0))
+gradYs = np.linspace(-1.0,1.0,np.size(LISGradient2d[0],1))
+gradXLocs, gradYLocs = np.meshgrid(gradXs, gradYs)
+M = np.hypot(LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2])
+Q = axes[2][2].quiver(gradXLocs[::2,::2], gradYLocs[::2,::2], LISGradient2d[0][::2,::2], LISGradient2d[1][::2,::2], pivot="tip", angles='xy')#, scale=0.5)
 #qk = axes[2][2].quiverkey(Q, 0.9,0.9,1, r'$1 \frac{kt}{hr}$', labelpos='E', coordinates='figure')
 #axes[2][2].scatter(gradXLocs[::2,::2], gradYLocs[::2,::2], color='0.5', s=1)
 
-###axes[2][2].xaxis.tick_bottom()
-###axes[2][2].axhline(y=0, color='k')
-###axes[2][2].axvline(x=0, color='k')
+axes[2][2].xaxis.tick_bottom()
+axes[2][2].axhline(y=0, color='k')
+axes[2][2].axvline(x=0, color='k')
 
-###sp23 = axes[2][3].imshow(z1, cmap=cmap2, extent=extent, aspect=10/1, origin='lower')
-###axes[2][3].set_xticks([])
-###axes[2][3].yaxis.tick_right()
+sp23 = axes[2][3].imshow(z1, cmap=cmap2, extent=extent, aspect=10/1, origin='lower')
+axes[2][3].set_xticks([])
+axes[2][3].yaxis.tick_right()
 
-###sp32 = axes[3][2].imshow(z0, cmap=cmap2, extent=extent, aspect=1/10, origin='lower')
-###axes[3][2].set_yticks([])
+sp32 = axes[3][2].imshow(z0, cmap=cmap2, extent=extent, aspect=1/10, origin='lower')
+axes[3][2].set_yticks([])
 
-#todo: o'all title       plt.title('Title')
-###axes[0][0].set_title('SPoRT LIS: RSM 0-10cm (%)' + os.linesep + \
-###						'Orientated W/ GFS4 10 m Winds' + os.linesep + \
-###						'Data Centered On: ' + str(args["lat_lon"]))
-###axes[0][2].set_title('RSM (%) - Surface Wind Orientated')
-###axes[0][2].set_ylabel('degrees downwind')
-###axes[0][2].set_xlabel('degrees cross-wind')
-###axes[0][3].set_ylabel('degrees downwind mean')
-###axes[1][2].set_xlabel('degrees cross-wind mean')
-###axes[1][0].set_ylabel('cells')
-###axes[2][0].set_title('Departures from Mean')
-###axes[2][2].set_title('Gradient (Slope)')
+plt.suptitle('SPoRT LIS - Orientated W/ GFS4 10 m Winds' + os.linesep + \
+			'Data Centered On: ' + str(args["lat_lon"]) + os.linesep + \
+			'Date: ' + str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')), fontsize=14)
+axes[0][0].set_title('RSM 0-10cm (%)' )
+axes[0][2].set_title('RSM 0-10cm (%) - Surface Wind Orientated')
+axes[0][2].set_ylabel('degrees downwind')
+axes[0][2].set_xlabel('degrees cross-wind')
+axes[0][3].set_ylabel('degrees downwind mean')
+axes[1][2].set_xlabel('degrees cross-wind mean')
+#axes[1][0].set_ylabel('cells')
+axes[2][0].set_title('Departures from Mean')
+axes[2][2].set_title('Gradient (Slope)')
 
-###axes[0][1].axis('off')
-###axes[1][0].axis('off')		# hist of raw values
-###axes[1][1].axis('off')
-###axes[1][3].axis('off')
-###axes[3][1].axis('off')
-###axes[3][3].axis('off')
+axes[0][1].axis('off')
+axes[1][0].axis('off')		# hist of raw values
+axes[1][1].axis('off')
+axes[1][3].axis('off')
+axes[3][1].axis('off')
+axes[3][3].axis('off')
 
-###plt.savefig(args["output"] +'.png') # Set the output file name
+plt.savefig(args["output"] +'Temps.png') # Set the output file name
 
 # --- Save output as ascii format in .txt file ---
-###print("Saving .ascii ...")
-###ncols = LISAligned.shape[0]
-###nrows = LISAligned.shape[1]
-###cellsize = 3.0/111.0
-###xllcorner = -(LISAligned.shape[0]/2) * cellsize
-###yllcorner = -(LISAligned.shape[1]/2) * cellsize
-###nodata_value = -9999
-###np.nan_to_num(LISAligned, copy=False, nan=-9999)	
-###values = LISAligned.flatten()
-###toWrite = 'ncols ' + str(ncols) +\
-###			'\nnrows ' + str(nrows) +\
-###			'\nxllcorner ' + str(xllcorner) +\
-###			'\nyllcorner ' + str(yllcorner) +\
-###			'\ncellsize ' + str(cellsize) +\
-###			'\nnodata_value ' + str(nodata_value) + '\n' +\
-###			' '.join(map(str, values))
-###ascii_file = open(args["output"] +'.txt', "w")
-###ascii_file.write(toWrite)
-###ascii_file.close()
+print("Saving .ascii ...")
+ncols = LISAligned.shape[0]
+nrows = LISAligned.shape[1]
+cellsize = 3.0/111.0
+xllcorner = -(LISAligned.shape[0]/2) * cellsize
+yllcorner = -(LISAligned.shape[1]/2) * cellsize
+nodata_value = -9999
+np.nan_to_num(LISAligned, copy=False, nan=-9999)	
+values = LISAligned.flatten()
+toWrite = 'ncols ' + str(ncols) +\
+			'\nnrows ' + str(nrows) +\
+			'\nxllcorner ' + str(xllcorner) +\
+			'\nyllcorner ' + str(yllcorner) +\
+			'\ncellsize ' + str(cellsize) +\
+			'\nnodata_value ' + str(nodata_value) + '\n' +\
+			' '.join(map(str, values))
+ascii_file = open(args["output"] +'Temps.txt', "w")
+ascii_file.write(toWrite)
+ascii_file.close()
+'''

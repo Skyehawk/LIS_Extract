@@ -89,15 +89,15 @@ class RadarROI(RadarSlice):
     def __init__(self, file, sensorData=None):
         super(RadarROI, self).__init__(file, sensorData)
 
-    def extractROI(self, baseCrds=None, baseBearing=0.0):
+    def extractROI(self, baseCrds=None, baseBearing=0.0, scaleFactor=1.0):
         if baseCrds is None:
             baseCrds = np.array([(1.5,1.0,0.0,1.0),
                         (1.5,-1.0,0.0,1.0),
                         (-0.5,-1.0,0.0,1.0),
                         (-0.5,1.0,0.0,1.0),
-                        (1.5,1.0,0.0,1.0)])    #crds of bounding box (Gridded degrees)
+                        (1.5,1.0,0.0,1.0)])    #default crds of bounding box (Gridded degrees)
         
-        self.tm = comp_matrix(scale=np.ones(3), rotation=np.array([0,0, baseBearing]), 
+        self.tm = comp_matrix(scale=np.ones(3)*scaleFactor, rotation=np.array([0,0, baseBearing]), 
                         shear=np.ones(3), translation=np.zeros(3))
 
         self.polyVerts = self.tm.dot(baseCrds.T).T[:,:2]    # Apply transformation Matrix, remove padding, and re-transpose

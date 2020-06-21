@@ -59,7 +59,7 @@ def comp_matrix(scale, rotation, shear, translation):
 	# TODO: Add support for off primary axis rotation (rotation about an arbitary axis)
 
 	#return np.dot(T_M,np.dot(Rz_M,np.dot(Rx_M,np.dot(Ry_M,S_M))))						  # IMPORTANT: the transformations must be multiplied together in the [B]reverse order[/B] to that in which we want them applied
-	return np.dot(T_M, Rz_M)
+	return np.dot(S_M,np.dot(T_M, Rz_M))
 #**
 # Decompose transformation matrix into its component parts (Not used and probally full of bugs)
 # @param  transformation_matrix - [floats] 4x4 transformation matrix 

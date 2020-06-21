@@ -82,8 +82,8 @@ testLocIdx= np.where(gridTestLoc[1]==UGridLat)[0][0], np.where(gridTestLoc[0]==U
 testValU = U[testLocIdx[0]-1: testLocIdx[0] + 2,testLocIdx[1]-1: testLocIdx[1] + 2]			# 3x3 sample of U values centered about our closest vector
 testValV = V[testLocIdx[0]-1: testLocIdx[0] + 2,testLocIdx[1]-1: testLocIdx[1] + 2]			# 3x3 sample of V values centered about our closest vector
 gausKern3x3sig1 = np.array([[0.077847,0.123317,0.077847],\
-						[0.123317,0.195346,0.123317],\
-						[0.077847,0.123317,0.077847]])
+							[0.123317,0.195346,0.123317],\
+							[0.077847,0.123317,0.077847]])
 testLocBearing = np.arctan2(np.sum(testValV*gausKern3x3sig1), np.sum(testValU*gausKern3x3sig1))
 testLocMag = np.sqrt(np.sum(testValV*gausKern3x3sig1)**2 + np.sum(testValU*gausKern3x3sig1)**2)
 
@@ -137,15 +137,24 @@ LISGradient2dMag = np.sqrt(LISGradient2d[0] ** 2 + LISGradient2d[0] ** 2)
 grad_Dep_Val_Sq_Weighted = np.nansum((LISGradient2dMag * LISAlignedMeanDep * gmap) ** 2)
 print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
 
-#f_o = open(args["output"] + 'log_stats_area.txt', 'a')
-#f_o.write(str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
-#	+ '\t' + str(np.nanstd(LISAligned)) 
-#	+ '\t' + str(np.nansum(LISAligned*gmap)) 
-#	+ '\t' + str(np.nanmean(LISAligned)) 
-#	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 
-#	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 
-#	+ '\t' + str(np.nanmean(LISAlignedMeanDep))
-#	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
+f_o = open(args["output"] + 'log_stats_area.txt', 'a')
+f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
+	+ '\t' + str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
+	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS aligned data
+	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS aligned data
+	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned Data
+	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departues
+	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departues
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) / np.nansum(LISAligned[:35,:])) 											# ratio of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) 							# ratio of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# ratio of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# ratio of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) - np.nansum(LISAligned[:35,:])) 											# differece of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# differece of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# differece of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# differece of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
+f_o.close()
 
 # --- Plot data and create output ---
 vmin, vmax = 0, 400  # 0,400  #should probally set this to the interquartile range
@@ -222,7 +231,7 @@ sp30 = axes[3][0].imshow(z0, cmap=cmap, extent=extent, aspect=1/10, origin='lowe
 axes[3][0].set_yticks([])
 
 # --- Plot wind orientated data (variance Gradient) with axis averages ---
-z = LISGradient2dMag * gmap
+z = LISGradient2dMag
 
 z1 = np.nanmean(z, axis=1).reshape(z.shape[0], 1)
 z0 = np.nanmean(z, axis=0).reshape(1, z.shape[1])
@@ -247,16 +256,16 @@ axes[2][3].yaxis.tick_right()
 sp32 = axes[3][2].imshow(z0, cmap=cmap2, extent=extent, aspect=1/10, origin='lower')
 axes[3][2].set_yticks([])
 
-#todo: o'all title       plt.title('Title')
-axes[0][0].set_title('SPoRT LIS: Temp 0-10cm (K)' + os.linesep + \
-						'Orientated W/ GFS4 10 m Winds' + os.linesep + \
-						'Data Centered On: ' + str(args["lat_lon"]))
+plt.suptitle('SPoRT LIS - Orientated W/ GFS4 10 m Winds' + os.linesep + \
+			'Data Centered On: ' + str(args["lat_lon"]) + os.linesep + \
+			'Date: ' + str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')), fontsize=14)
+axes[0][0].set_title('RSM 0-10cm (%)')
 axes[0][2].set_title('Surface Temp (K) - Surface Wind Orientated')
 axes[0][2].set_ylabel('degrees downwind')
 axes[0][2].set_xlabel('degrees cross-wind')
 axes[0][3].set_ylabel('degrees downwind mean')
 axes[1][2].set_xlabel('degrees cross-wind mean')
-axes[1][0].set_ylabel('cells')
+#axes[1][0].set_ylabel('cells')
 axes[2][0].set_title('Departures from Mean')
 axes[2][2].set_title('Gradient (Slope)')
 

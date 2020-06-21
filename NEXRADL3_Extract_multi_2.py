@@ -9,7 +9,7 @@
 #
 # Developed as a tool to extract values from NEXRAD inputs for Thesis work
 # 
-# Use:	Linux call:  python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/NEXRADL3_Extract_multi_2.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2016/20160715_2/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_2 -c 41.55 -102.18 -s 41.95778 -100.57583
+# Use:	Example Linux call:  python NEXRADL3_Extract_multi_2.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2011/20110814_0/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2011/gfsanl_4_20110815_0000_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2011/20110814_0 -c 45.68 -101.47 -b 0.2
 
 
 # --- Imports ---
@@ -49,8 +49,9 @@ ap.add_argument("-g", "--GFS", help=" path to the input file of GFS Wind U*V dat
 ap.add_argument("-e", "--extension", type=str, default="", help="(Optional) file extension. Default None")
 ap.add_argument("-o", "--output", help=" path to the output directory")
 ap.add_argument("-c", "--convLatLon", nargs="+", help="passed: -c <lat_float> <lon_float>; Lat/Lon of point of convection")
-ap.add_argument("-b", "--convBearing", nargs="+", help="passed: -b Bearing of storm training, in Rads, measured CCW from East")
-ap.add_argument("-s", "--sensorLatLon", nargs="+", help="passed: -s <lat_float> <lon_float>; Lat/Lon of radar")
+ap.add_argument("-b", "--convBearing", type=float, help="passed: -b bearing of storm training, in Rads, measured CCW from East")
+ap.add_argument("-s", "--sensorLatLon", nargs="+", help="passed: -s <lat_float> <lon_float>; (Optional) Lat/Lon of radar if not in metadata")
+ap.add_argument("-sf", "--scaleFactor", type=float, default=1.0, help=" (Optinal) Scale factor for ROI when performing sensitivity analysis")
 args = vars(ap.parse_args())
 
 # --- Utility function(s) ---
@@ -67,14 +68,15 @@ def calculate_radar_stats(d, filepath):
 
 	offset = np.array([roi.sensorData["lat"] - float(args["convLatLon"][0]),
 						roi.sensorData["lon"] - float(args["convLatLon"][1])])
+
 	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
 	#testLocBearing = -.425
 
 	roi.calc_cartesian()
 	roi.shift_cart_orgin(offset=offset)
 
-	#roi.extractROI(baseBearing=float(args["convBearing"][0]))			# General locating
-	roi.extractROI(baseCrds=baseCrds, baseBearing=float(args["convBearing"][0]))
+	#roi.extractROI(baseBearing=args["convBearing"]))			# General locating
+	roi.extractROI(baseCrds=baseCrds, baseBearing=args["convBearing"], scaleFactor=args["scaleFactor"])
 	
 	reflectThresh = 139.0												# return strength threshold (139.0 = 35dbz)		
 	roi.find_area(reflectThresh)
