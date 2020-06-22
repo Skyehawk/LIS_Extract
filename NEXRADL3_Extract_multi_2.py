@@ -18,7 +18,7 @@ from os.path import join
 import argparse
 import numpy as np
 import multiprocessing as mp
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from scipy.fft import fft
 from scipy.signal import blackman, argrelmax, argrelmin 
@@ -106,7 +106,7 @@ def main():
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)
 	resultsDF['datetime'] = pd.to_datetime(resultsDF.datetime)
 	resultsDF.sort_values(by='datetime', inplace=True)
-	resultsDF.to_csv(args["output"] + '.csv', index = False)
+	#resultsDF.to_csv(args["output"] + '.csv', index = False)
 	print(resultsDF[['areaValue','refValue']].head(5))
 
 	# --- Plot time series---
@@ -140,16 +140,16 @@ def main():
 		add_timestamp(axes[ploty][plotx], record['datetime'], y=0.02, high_contrast=True)
 		axes[ploty][plotx].tick_params(axis='both', which='both')
 
-	print('Plotting Additional Data and Saving Output...')
+	print('Calculating Statistics...')
 
 	# pull data out of DF to make code cleaner
 	datetimes = resultsDF['datetime'].tolist()
-	elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))		# not currently used, need to get this wprking
-	areaValues = resultsDF['areaValue'].tolist()					# area ≥ 35dbz within ROI
-	refValues = resultsDF['refValue'].tolist()						# mean reflectivity ≥ 35dbz within ROI
-	areaRefValues = np.multiply(areaValues, refValues)				# product of area and reflectivity
-	varValues = resultsDF['varRefValue'].tolist()					# variance of mean reflectivity ≥ 35dbz within ROI
-	cvValues = [a / b for a, b in zip(varValues, refValues)]		# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
+	#elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))		# not currently used, need to get this working
+	areaValues = resultsDF['areaValue'].tolist()							# area ≥ 35dbz within ROI
+	refValues = resultsDF['refValue'].tolist()								# mean reflectivity ≥ 35dbz within ROI
+	areaRefValues = np.multiply(areaValues, refValues)						# product of area and reflectivity
+	varValues = resultsDF['varRefValue'].tolist()							# variance of mean reflectivity ≥ 35dbz within ROI
+	cvValues = [a / b for a, b in zip(varValues, refValues)]				# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
 
 	# Frequency
 	N = len(refValues)
@@ -157,19 +157,15 @@ def main():
 	yf = fft(refValues)
 	w = blackman(N)
 	ywf = fft(refValues*w)
-	xf = np.linspace(0,1.0/(2.0*T),N//2)
 
 	# Normalization
 	areaNorm = areaValues / np.max(areaValues)
-	print(f'areanorm{areaNorm}')
+	xf = np.linspace(0,1.0/(2.0*T),N//2)
 	cvNorm = cvValues / np.max(cvValues)
-	print(f'cvnorm{cvNorm}')
 	areaCVValuesNormalized = np.multiply(areaNorm, cvNorm)
-	print(f'arearefnorm{areaCVValuesNormalized}')
 
 	# Curve Smoothing
 	window = len(resultsDF.index)//8 							#approx 2 hours/ 8 ~15 mins ----> number of samples in moving average ( helps counteract more visible noise in higher temporal resolution data)
-
 	yAreaAvg = movingaverage(areaValues, window)					# create moving averages for time series'
 	yRefAvg = movingaverage(refValues, window)
 	yCVAvg = movingaverage(cvValues, window)
@@ -183,11 +179,28 @@ def main():
 	yAreaCVNormMax = argrelmax(yAreaCVNormAvg)
 	yAreaCVNormMin = argrelmin(yAreaCVNormAvg)
 
+	# Slopes of Build-up Lines
+	# 	Area
+	xArea = np.array(datetimes)[np.array([1,areaMax[0][0]])]
+	xAreaDiff = xArea[1] - xArea[0]
+	yArea = yAreaAvg[np.array([1,areaMax[0][0]])]
+	yAreaDiff = yArea[1] - yArea[0]
+	slopeArea = np.arctan(yAreaDiff/xAreaDiff.seconds)
+	print (f'Slope Area: {slopeArea}')
 
-	print(f'Area Mins: {yAreaAvg[areaMin]}; Area Maxs: {yAreaAvg[areaMax]}')
-	print(f'CV Mins: {yCVAvg[cvMin]}; CV Maxs: {yCVAvg[cvMax]}')
-	#print(datetimes[np.array([0,areaMax[0][0]])])
+	# 	Product of Area and CV of ref
+	xProduct = np.array(datetimes)[np.array([1,yAreaCVNormMax[0][0]])]
+	XProductDiff = xProduct[1] - xProduct[0]
+	yProduct = yAreaCVNormAvg[np.array([1,yAreaCVNormMax[0][0]])]
+	yProductDiff = yProduct[1] - yProduct[0]
+	slopeProduct = np.arctan(yProductDiff/XProductDiff.seconds)
+	print (f'Slope Product: {slopeProduct}')
 
+
+	#print(f'Area Mins: {yAreaAvg[areaMin]}; Area Maxs: {yAreaAvg[areaMax]}')
+	#print(f'CV Mins: {yCVAvg[cvMin]}; CV Maxs: {yCVAvg[cvMax]}')
+
+	print('Plotting Additional Data and Saving Output...')
 	# Area for Reflectivity ≥ 35dbz
 	axes[-1][-5].plot_date(datetimes,areaValues,linestyle='solid', ms=2)
 	axes[-1][-5].plot_date(datetimes[window//2:-window//2], yAreaAvg[window//2:-window//2], linestyle='solid', ms=2)
@@ -231,11 +244,20 @@ def main():
 	#axes[-1][-1].plot_date(datetimes[window//2:-window//2], yCVAvg[window//2:-window//2], linestyle='solid')
 	#axes[-1][-1].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
-	axes[-1][-1].set_title('Testing Plot')
+	axes[-1][-1].set_title('Testing Plot (Frequency)')
 
 	plt.tight_layout()
 	plt.savefig(args["output"] +'Nexrad.png') 						# Set the output file name
 	#plt.show()
+
+	f_o = open(args["output"] + 'log_stats_area_nexrad.txt', 'a')
+	f_o.write(datetimes[0].strftime("%Y%m%d%H%M%S")
+		+ '\t' + str(args["convLatLon"]) + '\t' + str(args["convBearing"]) + '\t' + str(args["scaleFactor"])
+		+ '\t' + str(np.max(areaValues))
+		+ '\t' + str(np.max(refValues))
+		+ '\t' + str(slopeArea) 																				# std dev of LIS aligned data
+		+ '\t' + str(slopeProduct) + '\n')
+	f_o.close()
 
 if __name__ == '__main__':
 	main()
