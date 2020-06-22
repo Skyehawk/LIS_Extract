@@ -21,7 +21,7 @@ import multiprocessing as mp
 from datetime import datetime
 
 from scipy.fft import fft
-from scipy.signal import blackman
+from scipy.signal import blackman, argrelmax, argrelmin 
 
 import matplotlib.pyplot as plt						# v. 3.1.0
 import matplotlib.colors as colors
@@ -75,7 +75,7 @@ def calculate_radar_stats(d, filepath):
 	roi.calc_cartesian()
 	roi.shift_cart_orgin(offset=offset)
 
-	#roi.extractROI(baseBearing=args["convBearing"]))			# General locating
+	#roi.extractROI(baseBearing=args["convBearing"])			# General locating
 	roi.extractROI(baseCrds=baseCrds, baseBearing=args["convBearing"], scaleFactor=args["scaleFactor"])
 	
 	reflectThresh = 139.0												# return strength threshold (139.0 = 35dbz)		
@@ -131,8 +131,10 @@ def main():
 		axes[ploty][plotx].set_ylim(negYLim, posYLim)
 		pVXs, pVYs = zip(*record['polyVerts'])						# create lists of x and y values for transformed polyVerts
 		axes[ploty][plotx].plot(pVXs,pVYs)
-		axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
-		#axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])		# will plot outside limits of subplot if site falls outside range
+		if negXLim < record['offset'][1] < posXLim and negYLim < record['offset'][0] < posYLim: 
+			axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
+			axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])		# will plot outside limits of subplot if site falls outside range
+			
 		axes[ploty][plotx].plot(0.0, 0.0, 'bx')						# Location of the convection
 		axes[ploty][plotx].text(0.0, 0.0, str(args["convLatLon"]))
 		add_timestamp(axes[ploty][plotx], record['datetime'], y=0.02, high_contrast=True)
@@ -145,10 +147,11 @@ def main():
 	elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))		# not currently used, need to get this wprking
 	areaValues = resultsDF['areaValue'].tolist()					# area ≥ 35dbz within ROI
 	refValues = resultsDF['refValue'].tolist()						# mean reflectivity ≥ 35dbz within ROI
+	areaRefValues = np.multiply(areaValues, refValues)				# product of area and reflectivity
 	varValues = resultsDF['varRefValue'].tolist()					# variance of mean reflectivity ≥ 35dbz within ROI
 	cvValues = [a / b for a, b in zip(varValues, refValues)]		# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
 
-	# frequency
+	# Frequency
 	N = len(refValues)
 	T = 1.0/N
 	yf = fft(refValues)
@@ -156,29 +159,65 @@ def main():
 	ywf = fft(refValues*w)
 	xf = np.linspace(0,1.0/(2.0*T),N//2)
 
-	window = 3														# number of samples in moving average
-	yArea_avg = movingaverage(areaValues, window)					# create moving averages for time series'
-	yRef_avg = movingaverage(refValues, window)
-	yCV_avg = movingaverage(cvValues, window)
+	# Normalization
+	areaNorm = areaValues / np.max(areaValues)
+	print(f'areanorm{areaNorm}')
+	cvNorm = cvValues / np.max(cvValues)
+	print(f'cvnorm{cvNorm}')
+	areaCVValuesNormalized = np.multiply(areaNorm, cvNorm)
+	print(f'arearefnorm{areaCVValuesNormalized}')
+
+	# Curve Smoothing
+	window = 2														# number of samples in moving average
+	yAreaAvg = movingaverage(areaValues, window)					# create moving averages for time series'
+	yRefAvg = movingaverage(refValues, window)
+	yCVAvg = movingaverage(cvValues, window)
+	yAreaCVNormAvg = movingaverage(areaCVValuesNormalized, window)
+
+	# local maxima on smoothed curves
+	areaMax = argrelmax(yAreaAvg)
+	areaMin = argrelmin(yAreaAvg)
+	cvMax = argrelmax(yCVAvg)
+	cvMin = argrelmin(yCVAvg)
+	yAreaCVNormMax = argrelmax(yAreaCVNormAvg)
+	yAreaCVNormMin = argrelmin(yAreaCVNormAvg)
+
+
+	print(f'Area Mins: {yAreaAvg[areaMin]}; Area Maxs: {yAreaAvg[areaMax]}')
+	print(f'CV Mins: {yCVAvg[cvMin]}; CV Maxs: {yCVAvg[cvMax]}')
+	#print(datetimes[np.array([0,areaMax[0][0]])])
 
 	# Area for Reflectivity ≥ 35dbz
-	axes[-1][-4].plot_date(datetimes,areaValues,linestyle='solid', ms=4)
-	axes[-1][-4].plot_date(datetimes[window:-window], yArea_avg[window:-window],"r", linestyle='solid')
-	axes[-1][-4].xaxis.set_major_formatter(date_format)
-	plt.setp(axes[-1][-4].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
-	axes[-1][-4].set_title('Area of Reflectivity ≥ 35dbz')
+	axes[-1][-5].plot_date(datetimes,areaValues,linestyle='solid', ms=4)
+	axes[-1][-5].plot_date(datetimes[1:-1], yAreaAvg[1:-1], linestyle='solid', ms=4)
+	axes[-1][-5].plot_date(np.array(datetimes)[np.array([1,areaMax[0][0]])], yAreaAvg[np.array([1,areaMax[0][0]])], linestyle="solid", ms=4)
+	axes[-1][-5].legend(['Area Delta','Sm. Area Delta', 'Build-up Rate'])
+	axes[-1][-5].xaxis.set_major_formatter(date_format)
+	plt.setp(axes[-1][-5].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
+	axes[-1][-5].set_title('Area of Reflectivity ≥ 35dbz')
 
 	# TODO: map y axis to dbz for output
 	# Mean of Reflectivity ≥ 35dbz
-	axes[-1][-3].plot_date(datetimes,refValues,linestyle='solid', ms=4)
-	axes[-1][-3].plot_date(datetimes[window:-window], yRef_avg[window:-window],"r", linestyle='solid')
+	axes[-1][-4].plot_date(datetimes,refValues,linestyle='solid', ms=4)
+	axes[-1][-4].plot_date(datetimes[1:-1], yRefAvg[1:-1], linestyle='solid', ms=4)
+	axes[-1][-4].legend(['Ref Delta','Sm. Ref Delta'])
+	axes[-1][-4].xaxis.set_major_formatter(date_format)
+	plt.setp(axes[-1][-4].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
+	axes[-1][-4].set_title('Mean of Reflectivity ≥ 35dbz')
+	
+	# Product of cv reflectivity and area
+	axes[-1][-3].plot_date(datetimes,areaCVValuesNormalized,linestyle='solid', ms=4)
+	axes[-1][-3].plot_date(datetimes[1:-1], yAreaCVNormAvg[1:-1], linestyle='solid', ms=4)
+	axes[-1][-3].plot_date(np.array(datetimes)[np.array([1,yAreaCVNormMax[0][0]])], yAreaCVNormAvg[np.array([1,yAreaCVNormMax[0][0]])], linestyle="solid", ms=4)
+	axes[-1][-3].legend(['Area*cv_Ref Delta','Sm. Area*cv Ref Delta', 'Build-up Rate'])
 	axes[-1][-3].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-3].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
-	axes[-1][-3].set_title('Mean of Reflectivity ≥ 35dbz')
-	
+	axes[-1][-3].set_title('Norm Product: CV Reflectivity * Area ≥ 35dbz')
+
 	# Coeff. of Variance of Reflectivity ≥ 35dbz
 	axes[-1][-2].plot_date(datetimes,cvValues,linestyle='solid', ms=4)
-	axes[-1][-2].plot_date(datetimes[window:-window], yCV_avg[window:-window],"r", linestyle='solid')
+	axes[-1][-2].plot_date(datetimes[1:-1], yCVAvg[1:-1], linestyle='solid', ms=4)
+	axes[-1][-2].legend(['CV Delta','Sm. CV Delta'])
 	axes[-1][-2].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-2].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-2].set_title('CV of Reflectivity ≥ 35dbz')
@@ -188,7 +227,7 @@ def main():
 	axes[-1][-1].semilogy(xf[1:N//2], 2.0/N * np.abs(ywf[1:N//2]), '-r')
 	axes[-1][-1].legend(['FFT','FFT w. Window'])
 	#axes[-1][-1].plot(xf, 2.0/N * np.abs(yf[0:N//2]),linestyle='solid', ms=4)
-	#axes[-1][-1].plot_date(datetimes[window:-window], yCV_avg[window:-window],"r", linestyle='solid')
+	#axes[-1][-1].plot_date(datetimes[1:-1], yCVAvg[1:-1], linestyle='solid')
 	#axes[-1][-1].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-1].set_title('Testing Plot')
