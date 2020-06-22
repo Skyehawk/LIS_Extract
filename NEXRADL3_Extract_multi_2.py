@@ -168,7 +168,8 @@ def main():
 	print(f'arearefnorm{areaCVValuesNormalized}')
 
 	# Curve Smoothing
-	window = 2														# number of samples in moving average
+	window = len(resultsDF.index)//8 							#approx 2 hours/ 8 ~15 mins ----> number of samples in moving average ( helps counteract more visible noise in higher temporal resolution data)
+
 	yAreaAvg = movingaverage(areaValues, window)					# create moving averages for time series'
 	yRefAvg = movingaverage(refValues, window)
 	yCVAvg = movingaverage(cvValues, window)
@@ -188,9 +189,9 @@ def main():
 	#print(datetimes[np.array([0,areaMax[0][0]])])
 
 	# Area for Reflectivity ≥ 35dbz
-	axes[-1][-5].plot_date(datetimes,areaValues,linestyle='solid', ms=4)
-	axes[-1][-5].plot_date(datetimes[1:-1], yAreaAvg[1:-1], linestyle='solid', ms=4)
-	axes[-1][-5].plot_date(np.array(datetimes)[np.array([1,areaMax[0][0]])], yAreaAvg[np.array([1,areaMax[0][0]])], linestyle="solid", ms=4)
+	axes[-1][-5].plot_date(datetimes,areaValues,linestyle='solid', ms=2)
+	axes[-1][-5].plot_date(datetimes[window//2:-window//2], yAreaAvg[window//2:-window//2], linestyle='solid', ms=2)
+	axes[-1][-5].plot_date(np.array(datetimes)[np.array([1,areaMax[0][0]])], yAreaAvg[np.array([1,areaMax[0][0]])], linestyle="solid", ms=2)
 	axes[-1][-5].legend(['Area Delta','Sm. Area Delta', 'Build-up Rate'])
 	axes[-1][-5].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-5].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
@@ -198,25 +199,25 @@ def main():
 
 	# TODO: map y axis to dbz for output
 	# Mean of Reflectivity ≥ 35dbz
-	axes[-1][-4].plot_date(datetimes,refValues,linestyle='solid', ms=4)
-	axes[-1][-4].plot_date(datetimes[1:-1], yRefAvg[1:-1], linestyle='solid', ms=4)
+	axes[-1][-4].plot_date(datetimes,refValues,linestyle='solid', ms=2)
+	axes[-1][-4].plot_date(datetimes[window//2:-window//2], yRefAvg[window//2:-window//2], linestyle='solid', ms=2)
 	axes[-1][-4].legend(['Ref Delta','Sm. Ref Delta'])
 	axes[-1][-4].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-4].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-4].set_title('Mean of Reflectivity ≥ 35dbz')
 	
 	# Product of cv reflectivity and area
-	axes[-1][-3].plot_date(datetimes,areaCVValuesNormalized,linestyle='solid', ms=4)
-	axes[-1][-3].plot_date(datetimes[1:-1], yAreaCVNormAvg[1:-1], linestyle='solid', ms=4)
-	axes[-1][-3].plot_date(np.array(datetimes)[np.array([1,yAreaCVNormMax[0][0]])], yAreaCVNormAvg[np.array([1,yAreaCVNormMax[0][0]])], linestyle="solid", ms=4)
-	axes[-1][-3].legend(['Area*cv_Ref Delta','Sm. Area*cv Ref Delta', 'Build-up Rate'])
+	axes[-1][-3].plot_date(datetimes,areaCVValuesNormalized,linestyle='solid', ms=2)
+	axes[-1][-3].plot_date(datetimes[window//2:-window//2], yAreaCVNormAvg[window//2:-window//2], linestyle='solid', ms=2)
+	axes[-1][-3].plot_date(np.array(datetimes)[np.array([1,yAreaCVNormMax[0][0]])], yAreaCVNormAvg[np.array([1,yAreaCVNormMax[0][0]])], linestyle="solid", ms=2)
+	axes[-1][-3].legend(['Area*cv_Ref Delta','Sm. Area*cv_Ref Delta', 'Build-up Rate'])
 	axes[-1][-3].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-3].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-3].set_title('Norm Product: CV Reflectivity * Area ≥ 35dbz')
 
 	# Coeff. of Variance of Reflectivity ≥ 35dbz
-	axes[-1][-2].plot_date(datetimes,cvValues,linestyle='solid', ms=4)
-	axes[-1][-2].plot_date(datetimes[1:-1], yCVAvg[1:-1], linestyle='solid', ms=4)
+	axes[-1][-2].plot_date(datetimes,cvValues,linestyle='solid', ms=2)
+	axes[-1][-2].plot_date(datetimes[window//2:-window//2], yCVAvg[window//2:-window//2], linestyle='solid', ms=2)
 	axes[-1][-2].legend(['CV Delta','Sm. CV Delta'])
 	axes[-1][-2].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-2].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
@@ -226,8 +227,8 @@ def main():
 	axes[-1][-1].semilogy(xf[1:N//2], 2.0/N * np.abs(yf[1:N//2]), '-b')
 	axes[-1][-1].semilogy(xf[1:N//2], 2.0/N * np.abs(ywf[1:N//2]), '-r')
 	axes[-1][-1].legend(['FFT','FFT w. Window'])
-	#axes[-1][-1].plot(xf, 2.0/N * np.abs(yf[0:N//2]),linestyle='solid', ms=4)
-	#axes[-1][-1].plot_date(datetimes[1:-1], yCVAvg[1:-1], linestyle='solid')
+	#axes[-1][-1].plot(xf, 2.0/N * np.abs(yf[0:N//2]),linestyle='solid', ms=2)
+	#axes[-1][-1].plot_date(datetimes[window//2:-window//2], yCVAvg[window//2:-window//2], linestyle='solid')
 	#axes[-1][-1].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-1].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-1].set_title('Testing Plot')
