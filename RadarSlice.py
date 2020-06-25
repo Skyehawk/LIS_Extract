@@ -43,6 +43,12 @@ class RadarSlice(object):
         return self._data
 
     @property
+    def reflectivityUnits(self):
+        if not hasattr(self, '_reflectivityUnits'):
+            self._reflectivityUnits = '8Bit'
+        return self._reflectivityUnits
+    
+    @property
     def sensorData(self):
         if not hasattr(self,'_sensorData'):
             self._sensorData = None
@@ -93,6 +99,10 @@ class RadarSlice(object):
     @data.setter
     def data(self, value):
         self._data = value
+
+    @reflectivityUnits.setter
+    def reflectivityUnits(self, value):
+        self._reflectivityUnits = value
 
     @sensorData.setter
     def sensorData(self, value):
@@ -159,6 +169,12 @@ class RadarSlice(object):
 
     def mask_zeros(self):
         self.data[self.data == 0] = np.ma.masked                             # convert 0s to masked
+        return True
+
+    def convert_dbz(self):
+        if self.reflectivityUnits == '8Bit':
+            self.data = (self.data-65)*0.5
+            self.reflectivityUnits = 'dBZ'
         return True
 
     def find_area(self, reflectThresh=0.0):

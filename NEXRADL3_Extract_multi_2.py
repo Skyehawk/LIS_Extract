@@ -78,7 +78,7 @@ def calculate_radar_stats(d, filepath):
 	#roi.extractROI(baseBearing=args["convBearing"])			# General locating
 	roi.extractROI(baseCrds=baseCrds, baseBearing=args["convBearing"], scaleFactor=args["scaleFactor"])
 	
-	reflectThresh = 139.0												# return strength threshold (139.0 = 35dbz)		
+	reflectThresh = 135.0												# return strength threshold (135.0 = 35dbz)		
 	roi.find_area(reflectThresh)
 	roi.find_mean_reflectivity(reflectThresh)
 	roi.find_variance_reflectivity(reflectThresh)
@@ -146,10 +146,10 @@ def main():
 	datetimes = resultsDF['datetime'].tolist()
 	#elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))		# not currently used, need to get this working
 	areaValues = resultsDF['areaValue'].tolist()							# area ≥ 35dbz within ROI
-	refValues = resultsDF['refValue'].tolist()								# mean reflectivity ≥ 35dbz within ROI
-	areaRefValues = np.multiply(areaValues, refValues)						# product of area and reflectivity
+	refValues = (np.array(resultsDF['refValue'].tolist())-65) * 0.5			# mean reflectivity ≥ 35dbz within ROI (conversion: (val-65)*0.5)
+	#areaRefValues = np.multiply(areaValues, refValues)						# product of area and reflectivity
 	varValues = resultsDF['varRefValue'].tolist()							# variance of mean reflectivity ≥ 35dbz within ROI
-	cvValues = [a / b for a, b in zip(varValues, refValues)]				# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
+	cvValues = np.array([a / b for a, b in zip(varValues, refValues)])*0.5	# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
 
 	# Frequency
 	N = len(refValues)
@@ -166,7 +166,7 @@ def main():
 
 	# Curve Smoothing
 	window = len(resultsDF.index)//8 							#approx 2 hours/ 8 ~15 mins ----> number of samples in moving average ( helps counteract more visible noise in higher temporal resolution data)
-	yAreaAvg = movingaverage(areaValues, window)					# create moving averages for time series'
+	yAreaAvg = movingaverage(areaValues, window)				# create moving averages for time series'
 	yRefAvg = movingaverage(refValues, window)
 	yCVAvg = movingaverage(cvValues, window)
 	yAreaCVNormAvg = movingaverage(areaCVValuesNormalized, window)
@@ -196,7 +196,6 @@ def main():
 	slopeProduct = np.arctan(yProductDiff/XProductDiff.seconds)
 	print (f'Slope Product: {slopeProduct}')
 
-
 	#print(f'Area Mins: {yAreaAvg[areaMin]}; Area Maxs: {yAreaAvg[areaMax]}')
 	#print(f'CV Mins: {yCVAvg[cvMin]}; CV Maxs: {yCVAvg[cvMax]}')
 
@@ -208,7 +207,7 @@ def main():
 	axes[-1][-5].legend(['Area Delta','Sm. Area Delta', 'Build-up Rate'])
 	axes[-1][-5].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-5].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
-	axes[-1][-5].set_title('Area of Reflectivity ≥ 35dbz')
+	axes[-1][-5].set_title('Area of Reflectivity ≥ 35dbz (km^2)')
 
 	# TODO: map y axis to dbz for output
 	# Mean of Reflectivity ≥ 35dbz
