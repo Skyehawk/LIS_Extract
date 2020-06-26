@@ -122,29 +122,28 @@ class RadarROI(RadarSlice):
 
     #Override
     def find_area(self, reflectThresh=0.0):
-        #print('rangeMap', self.rangeMap[0])
-        #print('thresh: ', reflectThresh)
-        #print('data max: ', np.max(self.data))
-
         self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])                     # remove last range gate on the rangeMap
-        rsStackedData = self.stackedData.reshape((self.stackedData.shape[0])*(self.stackedData.shape[1]),2)  #Sholdn't need to rehape here, but we don't need the extra dim and would need to collapse it later
-        #print('stacked data max: ', np.max(rsStackedData[:,:2]))
-        print('data + rangeMap', self.stackedData[30,30,:])
-        #self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
-        #self.area = sum((rsStackedData * np.array(list(map(lambda i: i >= reflectThresh,rsStackedData)))).T[1]) # Grab the underlying cell area values
-        self.area = np.sum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,1], 0.0))
-        print(self.area)
-        #print(type(self.area))
+        #dep    #rsStackedData = self.stackedData.reshape((self.stackedData.shape[0])*(self.stackedData.shape[1]),2)  #Sholdn't need to rehape here, but we don't need the extra dim and would need to collapse it later
+        #dep    #self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
+        #dep    #self.area = sum((rsStackedData * np.array(list(map(lambda i: i >= reflectThresh,rsStackedData)))).T[1]) # Grab the underlying cell area values
+        self.area = np.nansum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,1], np.nan))
         return self.area
 
     #Override
     def find_mean_reflectivity(self, reflectThresh=0.0):
-        self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
+        if self.area == -1.0:
+            find_area(reflectThresh)
+        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])
+        self.meanReflectivity = np.nansum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,0]*self.stackedData[:,:,1], np.nan))/self.area #return product of reflectivity & weighting factor where >= thresh
         return self.meanReflectivity
 
     #Override
     def find_variance_reflectivity(self, reflectThresh=0.0):
-        self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
+        if self.area == -1.0:
+            find_area(reflectThresh)
+        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])
+        self.varReflectivity = np.nanvar(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,0]*self.stackedData[:,:,1], np.nan))/self.area #return product of reflectivity & weighting factor where >= thresh
+        #self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
 
     #Override

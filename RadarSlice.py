@@ -160,10 +160,10 @@ class RadarSlice(object):
         self.az = np.array(dataDict['start_az'] + [dataDict['end_az'][-1]])                 # Grab azimuths and calculate a range based on number of gates
         self.rng = np.linspace(0, f.max_range, self.data.shape[-1] + 1)
 
-        #range map - sq km at each range for a single azimuth reading
+        #range map - km^2 at each bin in range*azimuth
         rangeStep = f.max_range/(self.data.shape[-1] )
         f = lambda x:(1.0/len(self.az))*((np.pi*(x+rangeStep)**2)-(np.pi*(x)**2))
-        self.rangeMap = np.ones(tuple(map(operator.add,self.data.shape,(0,1)))) * np.array([[f(xi) for xi in self.rng]])
+        self.rangeMap = np.ones(tuple(map(operator.add,self.data.shape,(0,1)))) * np.array([[f(xi) for xi in self.rng]]) 
         
     def calc_cartesian(self):
         # these values will be the same for both the data and for the rangeMap values
@@ -201,13 +201,19 @@ class RadarSlice(object):
         self.area = np.sum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,1], 0.0))
         return self.area
 
-
     def find_mean_reflectivity(self, reflectThresh=0.0):
-        self.meanReflectivity = np.mean(np.array(list(filter(lambda x: x >= reflectThresh, self.data.flatten()))))
+        if self.area == -1.0:
+            find_area(reflectThresh)
+        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])
+        self.meanReflectivity = np.nansum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,0]*self.stackedData[:,:,1], np.nan))/self.area #return product of reflectivity & weighting factor where >= thresh
         return self.meanReflectivity
 
     def find_variance_reflectivity(self, reflectThresh=0.0):
-        self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
+        if self.area == -1.0:
+            find_area(reflectThresh)
+        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])
+        self.varReflectivity = np.nanvar(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,0]*self.stackedData[:,:,1], np.nan))/self.area #return product of reflectivity & weighting factor where >= thresh
+        #self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
 
     def __str__(self):

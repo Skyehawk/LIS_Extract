@@ -174,6 +174,8 @@ def main():
 	# local maxima on smoothed curves
 	areaMax = argrelmax(yAreaAvg)
 	areaMin = argrelmin(yAreaAvg)
+	refMax = argrelmax(yRefAvg)
+	refMin = argrelmin(yRefAvg)
 	cvMax = argrelmax(yCVAvg)
 	cvMin = argrelmin(yCVAvg)
 	yAreaCVNormMax = argrelmax(yAreaCVNormAvg)
@@ -187,6 +189,14 @@ def main():
 	yAreaDiff = yArea[1] - yArea[0]
 	slopeArea = np.arctan(yAreaDiff/xAreaDiff.seconds)
 	print (f'Slope Area: {slopeArea}')
+
+	#   Reflectivity
+	xRef = np.array(datetimes)[np.array([1,areaMax[0][0]])]
+	xRefDiff = xRef[1] - xRef[0]
+	yRef = yRefAvg[np.array([1,refMax[0][0]])]
+	yRefDiff = yRef[1] - yRef[0]
+	slopeRef = np.arctan(yRefDiff/xRefDiff.seconds)
+	print (f'Slope Reflectivity: {slopeRef}')
 
 	# 	Product of Area and CV of ref
 	xProduct = np.array(datetimes)[np.array([1,yAreaCVNormMax[0][0]])]
@@ -213,7 +223,8 @@ def main():
 	# Mean of Reflectivity ≥ 35dbz
 	axes[-1][-4].plot_date(datetimes,refValues,linestyle='solid', ms=2)
 	axes[-1][-4].plot_date(datetimes[window//2:-window//2], yRefAvg[window//2:-window//2], linestyle='solid', ms=2)
-	axes[-1][-4].legend(['Ref Delta','Sm. Ref Delta'])
+	axes[-1][-4].plot_date(np.array(datetimes)[np.array([1,refMax[0][0]])], yRefAvg[np.array([1,refMax[0][0]])], linestyle="solid", ms=2)
+	axes[-1][-4].legend(['Ref Delta','Sm. Ref Delta', 'Build-up Rate'])
 	axes[-1][-4].xaxis.set_major_formatter(date_format)
 	plt.setp(axes[-1][-4].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-4].set_title('Mean of Reflectivity ≥ 35dbz')
@@ -255,6 +266,7 @@ def main():
 		+ '\t' + str(np.max(areaValues))
 		+ '\t' + str(np.max(refValues))
 		+ '\t' + str(slopeArea) 																				# std dev of LIS aligned data
+		+ '\t' + str(slopeRef)
 		+ '\t' + str(slopeProduct) + '\n')
 	f_o.close()
 
