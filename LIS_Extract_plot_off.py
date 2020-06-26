@@ -46,8 +46,10 @@ outputPath = args["output"]
 # --- Read in 3 datasets: 1) LIS Data for layer of intrest 2) GFS U (Easting) component of wind velocity 3) GFS V (Northing) component of wind velocity ---
 LISGrbs = pygrib.open(args["LIS"])
 LISGrb = None
-if datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
-	LISGrb = LISGrbs.select()[27]											# index positions of relevent data (pre 2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
+if datetime.datetime.strptime(str(LISGrbs.select()[16].dataDate), '%Y%m%d') < datetime.datetime(2013, 1, 1):								# LIS grbs fields were expanded in 2013 & 2015
+	LISGrb = LISGrbs.select()[16]											# index positions of relevent data (pre 2012 is 16, 2013-2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
+elif datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
+	LISGrb = LISGrbs.select()[27]											
 else:
 	LISGrb = LISGrbs.select()[32]
 #print("\nLIS Data: " + str(LISGrb))
@@ -101,7 +103,7 @@ baseCrds = np.array([(1.0,1.0,0.0,1.0),(1.0,-1.0,0.0,1.0),(-1.0,-1.0,0.0,1.0),(-
 #comp_matrix(scale, rotation, shear, translation)
 TM = comp_matrix(np.ones(3), np.array([0,0, testLocBearing]), np.ones(3), np.pad(testLoc, (0, 1), 'constant'))
 polyVerts = TM.dot(baseCrds.T).T[:,:2]										#apply transformation Matrix, remove padding, and re-transpose
-print("PolyVerts (Lon_Lat): ", polyVerts)
+#print("PolyVerts (Lon_Lat): ", polyVerts)
 
 # --- Generate ROI from coordiantes (above) create 2D boolean array to mask with ---
 xp,yp = LISGridLon.flatten(),LISGridLat.flatten()
@@ -139,12 +141,12 @@ print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
 
 f_o = open(args["output"] + 'log_stats_area.txt', 'a')
 f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
-	+ '\t' + str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
-	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS aligned data
-	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS aligned data
-	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned data
-	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departures
-	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departures
+	+ '\t' + str(args["lat_lon"]) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
+	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS Aligned data
+	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS ALigned data
+	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned Data
+	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departues
+	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departues
 	+ '\t' + str(np.nansum(LISAligned[35:,:]) / np.nansum(LISAligned[:35,:])) 											# ratio of LIS Aligned data upwind:downwind
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) 							# ratio of LIS Aligned departures upwind:downwind
 	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# ratio of weighted LIS Aligned data upwind:downwind
@@ -153,7 +155,8 @@ f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d'))
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
 	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
-	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
+	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')																				
+
 f_o.close()
 
 # --- Plot data and create output ---
