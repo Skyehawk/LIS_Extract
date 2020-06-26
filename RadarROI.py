@@ -29,19 +29,19 @@ class RadarROI(RadarSlice):
     @property
     def area(self):
         if not hasattr(self, '_area'):
-            self._area = 0.0
+            self._area = -1.0
         return self._area
 
     @property
     def meanReflectivity(self):
         if not hasattr(self, '_meanReflectivity'):
-            self._meanReflectivity = 0.0
+            self._meanReflectivity = -1.0
         return self._meanReflectivity
 
     @property
     def varReflectivity(self):
         if not hasattr(self, '_varReflectivity'):
-            self._varReflectivity = 0.0
+            self._varReflectivity = -1.0
         return self._varReflectivity
 
     @property
@@ -122,7 +122,19 @@ class RadarROI(RadarSlice):
 
     #Override
     def find_area(self, reflectThresh=0.0):
-        self.area = sum(map(lambda i: i >= reflectThresh, self.clippedData.flatten()))
+        #print('rangeMap', self.rangeMap[0])
+        #print('thresh: ', reflectThresh)
+        #print('data max: ', np.max(self.data))
+
+        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])                     # remove last range gate on the rangeMap
+        rsStackedData = self.stackedData.reshape((self.stackedData.shape[0])*(self.stackedData.shape[1]),2)  #Sholdn't need to rehape here, but we don't need the extra dim and would need to collapse it later
+        #print('stacked data max: ', np.max(rsStackedData[:,:2]))
+        print('data + rangeMap', self.stackedData[30,30,:])
+        #self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
+        #self.area = sum((rsStackedData * np.array(list(map(lambda i: i >= reflectThresh,rsStackedData)))).T[1]) # Grab the underlying cell area values
+        self.area = np.sum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,1], 0.0))
+        print(self.area)
+        #print(type(self.area))
         return self.area
 
     #Override

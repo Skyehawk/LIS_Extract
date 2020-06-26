@@ -146,7 +146,7 @@ def main():
 	datetimes = resultsDF['datetime'].tolist()
 	#elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))		# not currently used, need to get this working
 	areaValues = resultsDF['areaValue'].tolist()							# area ≥ 35dbz within ROI
-	refValues = (np.array(resultsDF['refValue'].tolist())-65) * 0.5			# mean reflectivity ≥ 35dbz within ROI (conversion: (val-65)*0.5)
+	refValues = (np.array(resultsDF['refValue'].tolist())-65) * 0.5			# mean reflectivity ≥ 35dbz within ROI (conversion: (val-65)*0.5) [https://mesonet.agron.iastate.edu/GIS/rasters.php?rid=2]
 	#areaRefValues = np.multiply(areaValues, refValues)						# product of area and reflectivity
 	varValues = resultsDF['varRefValue'].tolist()							# variance of mean reflectivity ≥ 35dbz within ROI
 	cvValues = np.array([a / b for a, b in zip(varValues, refValues)])*0.5	# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
