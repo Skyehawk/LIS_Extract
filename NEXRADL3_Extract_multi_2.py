@@ -5,7 +5,7 @@
 # @date: 2020-03-27
 #
 # Updated
-# 2020-04-28
+# 2020-06-28
 #
 # Developed as a tool to extract values from NEXRAD inputs for Thesis work
 # 

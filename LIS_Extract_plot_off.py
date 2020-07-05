@@ -63,6 +63,9 @@ VGrb = GFSGrbs.select(name='10 metre V wind component')[0]
 print("\nV Data: " + str(VGrb))
 V = VGrb.values * 1.944														# array containing V component gridded values (knots)
 
+print(f'LIS Valid Date: {LISGrb.validDate}, Name: {LISGrb.name}, Units: {LISGrb.units}')
+print(f'GFS Valid Date: {UGrb.validDate}, Name: {UGrb.name}, Units: {UGrb.units}')
+
 # --- Convert gridded data to lat/lon information ---
 LISLons = np.linspace(float(LISGrb['longitudeOfFirstGridPointInDegrees']), float(LISGrb['longitudeOfLastGridPointInDegrees']), int(LISGrb['Ni']) )	#generate x coordinates normalized to the range of data
 LISLats = np.linspace(float(LISGrb['latitudeOfFirstGridPointInDegrees']), float(LISGrb['latitudeOfLastGridPointInDegrees']), int(LISGrb['Nj']) )	#generate y coordinates normalized to the range of data
@@ -155,6 +158,9 @@ f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d'))
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
 	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nanmax(LISGradient2dMag))
+	+ '\t' + str(np.nanmax(LISGradient2dMag*gmap))
+	+ '\t' + str(np.nanmax(LISGradient2dMag[17:53,17:53]))
 	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')																				
 
 f_o.close()
