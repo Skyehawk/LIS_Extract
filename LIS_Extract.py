@@ -53,6 +53,7 @@ elif datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < 
 else:
 	LISGrb = LISGrbs.select()[32]
 #print("\nLIS Data: " + str(LISGrb))
+
 LISData = LISGrb.values														# array containing gridded LIS values
 
 GFSGrbs = pygrib.open(args["GFS"])
@@ -62,6 +63,9 @@ U = UGrb.values * 1.944														# array containing U component gridded valu
 VGrb = GFSGrbs.select(name='10 metre V wind component')[0]
 print("\nV Data: " + str(VGrb))
 V = VGrb.values * 1.944														# array containing V component gridded values (knots)
+
+print(f'LIS Valid Date: {LISGrb.validDate}, Name: {LISGrb.name}, Units: {LISGrb.units}')
+print(f'GFS Valid Date: {UGrb.validDate}, Name: {UGrb.name}, Units: {UGrb.units}')
 
 # --- Convert gridded data to lat/lon information ---
 LISLons = np.linspace(float(LISGrb['longitudeOfFirstGridPointInDegrees']), float(LISGrb['longitudeOfLastGridPointInDegrees']), int(LISGrb['Ni']) )	#generate x coordinates normalized to the range of data
@@ -139,7 +143,7 @@ print( "Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
 
 f_o = open(args["output"] + 'log_stats_area.txt', 'a')
 f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
-	+ '\t' + str(testLoc) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
+	+ '\t' + str(args["lat_lon"]) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
 	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS Aligned data
 	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS ALigned data
 	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned Data
@@ -153,6 +157,9 @@ f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d'))
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
 	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
 	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nanmax(LISGradient2dMag))
+	+ '\t' + str(np.nanmax(LISGradient2dMag*gmap))
+	+ '\t' + str(np.nanmax(LISGradient2dMag[17:53,17:53]))
 	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')
 f_o.close()
 
