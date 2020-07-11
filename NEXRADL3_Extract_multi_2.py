@@ -148,9 +148,12 @@ def main():
 	#elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))						# not currently used, need to get this working
 	areaValues = resultsDF['areaValue'].tolist()											# area ≥ 35dbz within ROI
 	refValues = (np.array(resultsDF['refValue'].tolist())-65) * 0.5							# mean reflectivity ≥ 35dbz within ROI (conversion: (val-65)*0.5) [https://mesonet.agron.iastate.edu/GIS/rasters.php?rid=2]
+	if np.nan in refValues:
+		 warnings.warn("Radar inputs contains instance with no ref values >= thresh",  UserWarning)
 	#areaRefValues = np.multiply(areaValues, refValues)										# product of area and reflectivity
 	varValues = resultsDF['varRefValue'].tolist()											# variance of mean reflectivity ≥ 35dbz within ROI
 	cvValues = np.array([a / b for a, b in zip(varValues, refValues)])*0.5					# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
+
 
 	# Frequency
 	N = len(refValues)
@@ -217,7 +220,7 @@ def main():
 	if yAreaCVNormAvg[0] <= np.all(yAreaCVNormAvg[1:window]) or yAreaCVNormAvg[0] >= np.all(yAreaCVNormAvg[1:window]):
 		endpoints.append(0)
 	if yAreaCVNormAvg[-1] <= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window:-2]) or yAreaCVNormAvg[-1] >= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window:-2]):
-		endpoints.append(len(yAreaCVNormAvg)-1) 
+		endpoints.append(len(yAreaCVNormAvg)-1)
 	yAreaCVNormExtremaRaw = sorted(yAreaCVNormLocalMax[0].tolist()+yAreaCVNormLocalMin[0].tolist()+endpoints)
 	yAreaCVNormExtrema = [x for x in yAreaCVNormExtremaRaw[1:] if x-yAreaCVNormExtremaRaw[0]>=minTemporalwindow]
 	yAreaCVNormExtrema = [yAreaCVNormExtremaRaw[0]]+yAreaCVNormExtrema

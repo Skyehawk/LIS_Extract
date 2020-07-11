@@ -23,6 +23,12 @@ class RadarROI(RadarSlice):
         return self._clippedData
 
     @property
+    def clippedRangeMap(self):
+        if not hasattr(self, '_clippedRangeMap'):
+            self._clippedRangeMap = np.empty((1))
+        return self._clippedRangeMap
+
+    @property
     def mask(self):
         return self._mask
     
@@ -60,6 +66,10 @@ class RadarROI(RadarSlice):
     @clippedData.setter
     def clippedData(self, value):
         self._clippedData = value
+
+    @clippedRangeMap.setter
+    def clippedRangeMap(self, value):
+        self._clippedRangeMap = value
 
     @mask.setter
     def mask(self, value):
@@ -116,13 +126,17 @@ class RadarROI(RadarSlice):
         rDataMaskedClip = self.data[self.mask]
         rDataMaskClip = grid[self.mask]
         self.clippedData = rDataMaskedClip*rDataMaskClip
+
+        rRangeMapMaskedClip = self.rangeMap[:,:-1][self.mask]
+        self.clippedRangeMap = rRangeMapMaskedClip*rDataMaskClip
+
         self.xlocs = self.xlocs[self.mask]
         self.ylocs = self.ylocs[self.mask]
         return self.clippedData
 
     #Override
     def find_area(self, reflectThresh=0.0):
-        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])                     # remove last range gate on the rangeMap
+        self.stackedData = np.dstack([self.clippedData, self.clippedRangeMap])                     # remove last range gate on the rangeMap
         #dep    #rsStackedData = self.stackedData.reshape((self.stackedData.shape[0])*(self.stackedData.shape[1]),2)  #Sholdn't need to rehape here, but we don't need the extra dim and would need to collapse it later
         #dep    #self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
         #dep    #self.area = sum((rsStackedData * np.array(list(map(lambda i: i >= reflectThresh,rsStackedData)))).T[1]) # Grab the underlying cell area values
@@ -133,7 +147,7 @@ class RadarROI(RadarSlice):
     def find_mean_reflectivity(self, reflectThresh=0.0):
         if self.area == -1.0:
             find_area(reflectThresh)
-        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])
+        self.stackedData = np.dstack([self.clippedData, self.clippedRangeMap])
         self.meanReflectivity = np.nansum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,0]*self.stackedData[:,:,1], np.nan))/self.area #return product of reflectivity & weighting factor where >= thresh
         return self.meanReflectivity
 
@@ -141,7 +155,7 @@ class RadarROI(RadarSlice):
     def find_variance_reflectivity(self, reflectThresh=0.0):
         if self.area == -1.0:
             find_area(reflectThresh)
-        self.stackedData = np.dstack([self.data, self.rangeMap[:,:-1]])
+        self.stackedData = np.dstack([self.clippedData, self.clippedRangeMap])
         self.varReflectivity = np.nanvar(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,0]*self.stackedData[:,:,1], np.nan))/self.area #return product of reflectivity & weighting factor where >= thresh
         #self.varReflectivity = np.var(np.array(list(filter(lambda x: x >= reflectThresh, self.clippedData.flatten()))))
         return self.varReflectivity
