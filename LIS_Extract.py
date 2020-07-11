@@ -292,8 +292,8 @@ cellsize = 3.0/111.0
 xllcorner = -(LISAligned.shape[0]/2) * cellsize
 yllcorner = -(LISAligned.shape[1]/2) * cellsize
 nodata_value = -9999
-np.nan_to_num(LISAligned, copy=False, nan=-9999)	
-values = LISAligned.flatten()
+np.nan_to_num(LISAligned, copy=False, nan=-9999)				#Flip because we start at lower left corner, else the data will be mirrord about the x axis
+values = np.flip(LISAligned, axis=0).flatten()
 toWrite = 'ncols ' + str(ncols) +\
 			'\nnrows ' + str(nrows) +\
 			'\nxllcorner ' + str(xllcorner) +\
