@@ -5,11 +5,11 @@
 # @date: 2020-07-24
 #
 # Updated
-# 2020-07-24
+# 2020-07-30
 #
 # Developed as a tool to extract values from NEXRAD L2 inputs for Thesis work
 # 
-# Use:	Example Linux call:  python NEXRADL3_Extract_multi_2.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2011/20110814_0/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2011/gfsanl_4_20110815_0000_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2011/20110814_0 -c 45.68 -101.47 -b 0.2
+# Use:	Example Linux call:  python NEXRADL3_Extract_multi.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2011/20110814_0/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2011/gfsanl_4_20110815_0000_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2011/20110814_0 -c 45.68 -101.47 -b 0.2
 
 
 # --- Imports ---
@@ -19,24 +19,21 @@ import argparse
 import numpy as np
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool as TPool
-#from datetime import datetime, timedelta
 import datetime
 
+import pandas as pd
+from tqdm import tqdm
 from scipy.fft import fft
 from scipy.signal import blackman, argrelmax, argrelmin 
-
 import matplotlib.pyplot as plt						# v. 3.1.0
 import matplotlib.colors as colors
 from matplotlib.path import Path
 from matplotlib import dates as mpl_dates
 from mpl_toolkits.basemap import Basemap, shiftgrid
 
-import pandas as pd
 from metpy.io import Level2File
-#from metpy.plots import ctables
 from metpy.plots import add_timestamp, colortables, ctables
-import glob											# v0.7	
-from tqdm import tqdm
+#import glob											# v0.7	
 
 import boto3
 import botocore
@@ -45,28 +42,39 @@ from botocore.client import Config
 from RadarSlice_L2 import RadarSlice_L2
 from RadarROI_L2 import RadarROI_L2
 
-# Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
-import warnings
+import warnings		# Debug (progress bars bugged by matplotlib futurewarnings output being annoying)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # --- Construct argument parse to parse the arguments (input dates) ---
 ap = argparse.ArgumentParser()
 ap.add_argument("-r", "--NEXRADL3", help=" path to the input directory of NEXRADL3 Data ()")
-ap.add_argument("-g", "--GFS", help=" path to the input file of GFS Wind U*V data (GRIB)")
-ap.add_argument("-e", "--extension", type=str, default="", help="(Optional) file extension. Default None")
+#ap.add_argument("-g", "--GFS", help=" path to the input file of GFS Wind U*V data (GRIB)")
+#ap.add_argument("-e", "--extension", type=str, default="", help="(Optional) file extension. Default None")
 ap.add_argument("-o", "--output", help=" path to the output directory")
+ap.add_argument("-t", "--convTime", type=str, help="passed: -t <YYYYMMDDHHMMSS> Start time of observation (UTC)")
+ap.add_argument("-i", "--convInterval", type=str, default='0200', help="passed: -i <HHMM> Period of observation measured from start time (inclusive)")
 ap.add_argument("-c", "--convLatLon", nargs="+", help="passed: -c <lat_float> <lon_float>; Lat/Lon of point of convection")
-ap.add_argument("-b", "--convBearing", type=float, help="passed: -b bearing of storm training, in Rads, measured CCW from East")
+ap.add_argument("-b", "--convBearing", type=float, help="passed: -b Bearing of storm training, in Rads, measured CCW from East")
 ap.add_argument("-s", "--sensor", help=" 4 letter code for sensor")
 ap.add_argument("-sf", "--scaleFactor", type=float, default=1.0, help=" (Optinal) Scale factor for ROI when performing sensitivity analysis")
 args = vars(ap.parse_args())
 
 # --- Utility function(s) ---
 def movingaverage(interval, window_size):
-    window = np.ones(int(window_size))/float(window_size)
-    return np.convolve(interval, window, 'same')
+	'''
+	Simple convolve smoothing for curves
+	'''
+	window = np.ones(int(window_size))/float(window_size)
+	return np.convolve(interval, window, 'same')
 
 def pull_data(startDateTime, station):
+	'''
+	Pulls all radar data streams for a specified station (One hr incraments)
+	Param:	<Datetime> from which to start 
+			<Strin>
+	Return:	<List> of s3 bucket handles which contains L2 radar data
+			<List> of Datetimes which correspond to each bucket
+	'''
 	dt = startDateTime
 	s3 = boto3.resource('s3', config=Config(signature_version=botocore.UNSIGNED, 
 		user_agent_extra='Resource'))
@@ -76,14 +84,14 @@ def pull_data(startDateTime, station):
 	prefix = f'{dt:%Y}/{dt:%m}/{dt:%d}/{station}/{station}{dt:%Y%m%d_%H}'
 
 	objects = []
+	sweepDateTimes = []
 	for obj in bucket.objects.filter(Prefix=prefix):
-		print(obj.key)
 		objects.append(obj)
-	return objects
+		sweepDateTimes.append(datetime.datetime.strptime(obj.key[20:35], '%Y%m%d_%H%M%S'))
+	return objects, sweepDateTimes
 
 def calculate_radar_stats(d, radarFile):
 	roi = RadarROI_L2(radarFile=radarFile)
-
 
 	sensors = {'KMVX':(47.52806, -97.325), 'KBIS':(46.7825, -100.7572), 
 			'KMBX':(48.3925, -100.86444), 'KABR':(45.4433, -98.4134), 
@@ -93,8 +101,9 @@ def calculate_radar_stats(d, radarFile):
 	offset = np.array([sensors[args["sensor"]][0] - float(args["convLatLon"][0]),
 						sensors[args["sensor"]][1] - float(args["convLatLon"][1])])
 
-	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
-	#testLocBearing = -.425
+	baseCrds = np.array([(0.8750,0.25,0.0,1.0),(0.8750,-0.25,0.0,1.0),
+						(-0.125,-0.125,0.0,1.0),(-0.125,0.125,0.0,1.0),
+						(0.8750,0.25,0.0,1.0)]) 	#crds of bounding box (Gridded degrees)
 
 	roi.calc_cartesian()
 	roi.shift_cart_orgin(offset=offset)
@@ -106,38 +115,55 @@ def calculate_radar_stats(d, radarFile):
 	roi.find_area(reflectThresh)
 	roi.find_mean_reflectivity(reflectThresh)
 	roi.find_variance_reflectivity(reflectThresh)
-	d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,roi.polyVerts,offset,roi.area,roi.meanReflectivity,roi.varReflectivity]
+	d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,\
+							roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,\
+							roi.polyVerts,offset,roi.area,roi.meanReflectivity,\
+							roi.varReflectivity]
 
 def main():
 	manager = mp.Manager()
 	results = manager.dict()
 	pool = TPool(12)
-
 	jobs = []
 
-	dt = datetime.datetime(2020, 6, 30, 22)		# todo, arg for datetime
-	station = 'KMVX'
-	radarObjects = pull_data(startDateTime=dt, station=station)[:-1] # remove trailing *_MDM file
-	print(len(radarObjects))
-	# Todo:
-	# Logic to select nearest time + 2hr
+	startDateTime = datetime.datetime(2020, 7, 1, 3, 30, 00)		# todo, arg for datetime
+	
+	station = args["sensor"]
+	
+	# Query all L2 files for the sensor
+	totalRadarObjects = []
+	totalSweepDateTimes = []
+	hrIter = datetime.timedelta(hours=0)
+	while True:																					# grab a specific interval of files
+		radarObjects, sweepDateTimes = pull_data(startDateTime=(startDateTime+hrIter),\
+												 station=station)
+		totalRadarObjects.extend(radarObjects[:-1])
+		totalSweepDateTimes.extend(sweepDateTimes[:-1])										# remove trailing *_MDM file
+		if totalSweepDateTimes[-1] - startDateTime >= datetime.timedelta(hours=2):
+			break
+		else: 
+			hrIter += datetime.timedelta(hours=1)
+	fileDict = {'L2File':totalRadarObjects, 'Time':totalSweepDateTimes}
+	fileDF = pd.DataFrame(fileDict)	
 
-	# add each to jobs list
+	filesToStream = fileDF[((fileDF['Time'] >= startDateTime) \
+					& (fileDF['Time'] <= startDateTime + \
+					datetime.timedelta(hours=2)))]['L2File'].tolist()							# Bitwise operators, conditions double wrapped in perentheses to handle overriding
+	print(f'files: {[obj.key for obj in filesToStream]}')
+	if len(filesToStream) < 8:
+		warnings.warn("n of radar inputs is not sufficent for curve smoothing",  UserWarning)
 
-	outsideRadarObjects = []						# https://stackoverflow.com/questions/522563/accessing-the-index-in-for-loops
-	#for obj in radarObjects:
-	#	outsideRadarObjects.append(Level2File(obj.get()['Body']))
-
-	for L2FileStream in tqdm(radarObjects,desc="Streaming L2 Files"):
-		f = Level2File(L2FileStream.get()['Body'])
-		outsideRadarObjects.append(f)
-
-	for L2File in tqdm(outsideRadarObjects,desc="Creating Jobs"):
-		job = pool.apply_async(calculate_radar_stats, (results, L2File))
+	# --- Stream files ahead of time to avoid error with multiprocessing and file handles ---
+	filesToWorkers = []
+	for L2FileStream in tqdm(filesToStream,desc="Streaming L2 Files"):
+		filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
+	
+	# --- Create pool for workers ---
+	for file in filesToWorkers:
+		job = pool.apply_async(calculate_radar_stats, (results, file))
 		jobs.append(job)
 
-	print('passed jobs creation')
-
+	# --- Commit pool to workers ---
 	for job in tqdm(jobs,desc="Bounding & Searching Data"):
 		job.get()
 
@@ -145,9 +171,14 @@ def main():
 	pool.join()
 
 	print('Sorting...')
-	columns =['sweepDateTime', 'metadata', 'sensorData', 'indices', 'xlocs', 'ylocs', 'data', 'polyVerts', 'offset', 'areaValue', 'refValue', 'varRefValue']
-	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)
+	columns =['sweepDateTime', 'metadata', 'sensorData', 'indices', 'xlocs', 'ylocs', 
+				'data', 'polyVerts', 'offset', 'areaValue', 'refValue', 'varRefValue']
+	print('Creating Dataframe...')
+	#resultsDF = pd.DataFrame(results.items(), columns=columns)
+	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)	#SUPER slow
+	print('Converting datetimes...')
 	resultsDF['sweepDateTime'] = pd.to_datetime(resultsDF.sweepDateTime)
+	print('Sorting...')
 	resultsDF.sort_values(by='sweepDateTime', inplace=True)
 	#resultsDF.to_csv(args["output"] + '.csv', index = False)
 	print(resultsDF[['areaValue','refValue']].head(5))
@@ -189,13 +220,11 @@ def main():
 	datetimes = resultsDF['sweepDateTime'].tolist()
 	#elapsedtimes = list(map(lambda x: x - min(datetimes), datetimes))						# not currently used, need to get this working
 	areaValues = resultsDF['areaValue'].tolist()											# area ≥ 35dbz within ROI
-	refValues = (np.array(resultsDF['refValue'].tolist())-65) * 0.5							# mean reflectivity ≥ 35dbz within ROI (conversion: (val-65)*0.5) [https://mesonet.agron.iastate.edu/GIS/rasters.php?rid=2]
+	refValues = np.array(resultsDF['refValue'].tolist())									# mean reflectivity ≥ 35dbz within ROI (conversion: (val-65)*0.5) [https://mesonet.agron.iastate.edu/GIS/rasters.php?rid=2]
 	if np.nan in refValues:
 		 warnings.warn("Radar inputs contains instance with no ref values >= thresh",  UserWarning)
-	#areaRefValues = np.multiply(areaValues, refValues)										# product of area and reflectivity
 	varValues = resultsDF['varRefValue'].tolist()											# variance of mean reflectivity ≥ 35dbz within ROI
 	cvValues = np.array([a / b for a, b in zip(varValues, refValues)])*0.5					# coeff. of variation for mean reflectivity ≥ 35dbz within ROI
-
 
 	# Frequency
 	N = len(refValues)
@@ -268,7 +297,6 @@ def main():
 	yAreaCVNormExtrema = [yAreaCVNormExtremaRaw[0]]+yAreaCVNormExtrema
 	print(f'AreaCVNorm Extrema: {yAreaCVNormExtrema}')
 	
-
 	# Find slopes of Build-up Lines
 	# 	Area
 	xArea = np.array(datetimes[window//2:-window//2])[np.array([areaExtrema[0],areaExtrema[1]])]		# grab datetime (x component) of the leftmost bounds (determined by window size), and the first extreme on the smoothed curve (sm curve is already bound by window, we need to apply bounds to datetimes)
@@ -304,7 +332,6 @@ def main():
 	plt.setp(axes[-1][-5].xaxis.get_majorticklabels(), rotation=45, ha="right", rotation_mode="anchor" )
 	axes[-1][-5].set_title('Area of Reflectivity ≥ 35dbz (km^2)')
 
-	# TODO: map y axis to dbz for output
 	# Mean of Reflectivity ≥ 35dbz
 	axes[-1][-4].plot_date(datetimes,refValues,linestyle='solid', ms=2)
 	#axes[-1][-4].plot_date(datetimes[window//2:-window//2], yRefAvg, linestyle='solid', ms=2)
