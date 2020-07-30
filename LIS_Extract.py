@@ -5,11 +5,11 @@
 # 2019-11-27
 #
 # Updated
-# 2020-05-27
+# 2020-07-11
 #
 # Developed as a tool to extract values from a grb file for overlay geostatistical analysis
 # 
-# Use:	Linux call: python /mnt/d/Libraries/Documents/Scripts/LIS_Plot/LIS_Extract.py -l /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/SPoRT_LIS/SPoRT_LIS/2016/sportlis_daily_forSkye_20160715/201607/LIS_HIST_201607150000.d01.grb -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_test -c 42.087 -102.882
+# Use:	Linux call: python LIS_Extract.py -l /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/SPoRT_LIS/SPoRT_LIS/2016/sportlis_daily_forSkye_20160715/201607/LIS_HIST_201607150000.d01.grb -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2016/gfsanl_4_20160715_0600_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2016/20160715_test -c 42.087 -102.882
 #		
 #
 # Notes: Output currently .csv & ascii (in .txt format) files
@@ -52,6 +52,7 @@ elif datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < 
 	LISGrb = LISGrbs.select()[27]											
 else:
 	LISGrb = LISGrbs.select()[32]
+
 #print("\nLIS Data: " + str(LISGrb))
 
 LISData = LISGrb.values														# array containing gridded LIS values
