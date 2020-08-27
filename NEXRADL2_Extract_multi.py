@@ -10,7 +10,7 @@
 # Developed as a tool to extract values from NEXRAD L2 inputs for Thesis work
 # 
 # Use:	Example Linux call:  python NEXRADL3_Extract_multi.py -r /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/NEXRAD/2011/20110814_0/L2 -g /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/GFS/2011/gfsanl_4_20110815_0000_000.grb2 -o /mnt/d/Libraries/Documents/Grad_School/Thesis_Data/Output/2011/20110814_0 -c 45.68 -101.47 -b 0.2
-
+#	Currently not working for 2015 and prior
 
 # --- Imports ---
 import os
@@ -20,6 +20,10 @@ import numpy as np
 import multiprocessing as mp
 from multiprocessing.pool import ThreadPool as TPool
 import datetime
+from io import BytesIO
+#from gzip import GzipFile
+import gzip
+
 
 import pandas as pd
 from tqdm import tqdm
@@ -53,6 +57,7 @@ ap.add_argument("-r", "--NEXRADL3", help=" path to the input directory of NEXRAD
 ap.add_argument("-o", "--output", help=" path to the output directory")
 ap.add_argument("-t", "--convTime", type=str, help="passed: -t <YYYYMMDDHHMMSS> Start time of observation (UTC)")
 ap.add_argument("-i", "--convInterval", type=str, default='0200', help="passed: -i <HHMM> Period of observation measured from start time (inclusive)")
+ap.add_argument("-d", "--convThreshMin", type=float, default='35.0', help="passed: -d Minimum threshold of reflectivity (dBZ) ")
 ap.add_argument("-c", "--convLatLon", nargs="+", help="passed: -c <lat_float> <lon_float>; Lat/Lon of point of convection")
 ap.add_argument("-b", "--convBearing", type=float, help="passed: -b Bearing of storm training, in Rads, measured CCW from East")
 ap.add_argument("-s", "--sensor", help=" 4 letter code for sensor")
@@ -71,7 +76,7 @@ def pull_data(startDateTime, station):
 	'''
 	Pulls all radar data streams for a specified station (One hr incraments)
 	Param:	<Datetime> from which to start 
-			<Strin>
+			<String> station code
 	Return:	<List> of s3 bucket handles which contains L2 radar data
 			<List> of Datetimes which correspond to each bucket
 	'''
@@ -97,7 +102,9 @@ def calculate_radar_stats(d, radarFile):
 			'KMBX':(48.3925, -100.86444), 'KABR':(45.4433, -98.4134), 
 			'KFSD':(43.5778, -96.7539), 'KUDX':(44.125, -102.82944), 
 			'KOAX':(41.32028, -96.36639), 'KLNX':(41.95778, -100.57583), 
-			'KUEX':(40.32083, -98.44167), 'KGLD':(39.36722, -101.69333)}
+			'KUEX':(40.32083, -98.44167), 'KGLD':(39.36722, -101.69333),
+			'KCYS':(41.15166, -104.80622)}
+
 	offset = np.array([sensors[args["sensor"]][0] - float(args["convLatLon"][0]),
 						sensors[args["sensor"]][1] - float(args["convLatLon"][1])])
 
@@ -111,7 +118,7 @@ def calculate_radar_stats(d, radarFile):
 	#roi.extractROI(baseBearing=args["convBearing"])			# General locating
 	roi.extractROI(baseCrds=baseCrds, baseBearing=args["convBearing"], scaleFactor=args["scaleFactor"])
 	
-	reflectThresh = 35.0												# return strength threshold (135.0 = 35dbz)		
+	reflectThresh = args["convThreshMin"]												# return strength threshold (135.0 = 35dbz)		
 	roi.find_area(reflectThresh)
 	roi.find_mean_reflectivity(reflectThresh)
 	roi.find_variance_reflectivity(reflectThresh)
@@ -126,8 +133,9 @@ def main():
 	pool = TPool(12)
 	jobs = []
 
-	startDateTime = datetime.datetime(2020, 7, 1, 3, 30, 00)		# todo, arg for datetime
-	
+	startDateTime = datetime.datetime.strptime(args["convTime"], '%Y%m%d%H%M%S')
+	intervalDateTime = datetime.timedelta(hours=2)#(hours = args["convInterval"][:2], minutes=[args["convInterval"][2:]])
+
 	station = args["sensor"]
 	
 	# Query all L2 files for the sensor
@@ -139,7 +147,7 @@ def main():
 												 station=station)
 		totalRadarObjects.extend(radarObjects[:-1])
 		totalSweepDateTimes.extend(sweepDateTimes[:-1])										# remove trailing *_MDM file
-		if totalSweepDateTimes[-1] - startDateTime >= datetime.timedelta(hours=2):
+		if totalSweepDateTimes[-1] - startDateTime >= intervalDateTime:
 			break
 		else: 
 			hrIter += datetime.timedelta(hours=1)
@@ -148,7 +156,7 @@ def main():
 
 	filesToStream = fileDF[((fileDF['Time'] >= startDateTime) \
 					& (fileDF['Time'] <= startDateTime + \
-					datetime.timedelta(hours=2)))]['L2File'].tolist()							# Bitwise operators, conditions double wrapped in perentheses to handle overriding
+					intervalDateTime))]['L2File'].tolist()							# Bitwise operators, conditions double wrapped in perentheses to handle overriding
 	print(f'files: {[obj.key for obj in filesToStream]}')
 	if len(filesToStream) < 8:
 		warnings.warn("n of radar inputs is not sufficent for curve smoothing",  UserWarning)
@@ -156,8 +164,15 @@ def main():
 	# --- Stream files ahead of time to avoid error with multiprocessing and file handles ---
 	filesToWorkers = []
 	for L2FileStream in tqdm(filesToStream,desc="Streaming L2 Files"):
-		filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
-	
+		if datetime.datetime.strptime(L2FileStream.key[20:35], '%Y%m%d_%H%M%S') >= datetime.datetime(2016, 1, 1):
+			filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
+		else:
+			print('Stupid fucking bullshit.')
+			bytestream = BytesIO(L2FileStream.get()['Body'].read())
+			with gzip.open(bytestream, 'rb') as f:
+				filesToWorkers.append(Level2File(f))  
+				#filesToWorkers.append(Level2File(GzipFile(bytestream).read()))
+
 	# --- Create pool for workers ---
 	for file in filesToWorkers:
 		job = pool.apply_async(calculate_radar_stats, (results, file))
@@ -207,7 +222,7 @@ def main():
 		axes[ploty][plotx].plot(pVXs,pVYs)
 		if negXLim < record['offset'][1] < posXLim and negYLim < record['offset'][0] < posYLim: 
 			axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
-			axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])		# will plot outside limits of subplot if site falls outside range
+			axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])
 			
 		axes[ploty][plotx].plot(0.0, 0.0, 'bx')						# Location of the convection
 		axes[ploty][plotx].text(0.0, 0.0, str(args["convLatLon"]))
@@ -314,7 +329,7 @@ def main():
 	slopeRef = np.arctan(yRefDiff/xRefDiff.seconds)
 	print (f'Slope of Reflectivity: {slopeRef}')
 
-	# 	Product of Area and CV of ref
+	# 	Product of Area and Coefficent of Variation of Reflectivity
 	xProduct = np.array(datetimes[window//2:-window//2])[np.array([yAreaCVNormExtrema[0],yAreaCVNormExtrema[1]])]
 	XProductDiff = xProduct[1] - xProduct[0]
 	yProduct = yAreaCVNormAvg[np.array([yAreaCVNormExtrema[0],yAreaCVNormExtrema[1]])]
