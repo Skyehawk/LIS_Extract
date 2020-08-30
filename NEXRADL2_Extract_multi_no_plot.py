@@ -133,9 +133,7 @@ def calculate_radar_stats(d, radarFile):
 	roi.find_mean_reflectivity(reflectThresh)
 	roi.find_variance_reflectivity(reflectThresh)
 	d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,\
-							roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,\
-							roi.polyVerts,offset,roi.area,roi.meanReflectivity,\
-							roi.varReflectivity]
+							roi.area,roi.meanReflectivity, roi.varReflectivity]
 
 def main():
 	manager = mp.Manager()
@@ -195,9 +193,9 @@ def main():
 	pool.close()
 	pool.join()
 
-	columns =['sweepDateTime', 'metadata', 'sensorData', 'indices', 'xlocs', 'ylocs', 
-				'data', 'polyVerts', 'offset', 'areaValue', 'refValue', 'varRefValue']
-	print('Creating Dataframe... (This may take a while if plotting significant data)')
+	columns =['sweepDateTime', 'metadata', 'sensorData',
+				'areaValue', 'refValue', 'varRefValue']
+	print('Creating Dataframe... (This may take a while if plotting significant data')
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)	#SUPER slow
 	print('Converting datetimes...')
 	resultsDF['sweepDateTime'] = pd.to_datetime(resultsDF.sweepDateTime)
@@ -207,6 +205,7 @@ def main():
 	print(resultsDF[['areaValue','refValue']].head(5))
 
 	# --- Plot time series---
+	'''
 	fig, axes = plt.subplots(8, 8, figsize=(30, 30))
 	date_format = mpl_dates.DateFormatter('%H:%Mz')
 
@@ -236,7 +235,7 @@ def main():
 		axes[ploty][plotx].text(0.0, 0.0, str(args.convLatLon))
 		add_timestamp(axes[ploty][plotx], record['sweepDateTime'], y=0.02, high_contrast=True)
 		axes[ploty][plotx].tick_params(axis='both', which='both')
-
+	'''
 	print('Calculating Statistics...')
 
 	# pull data out of DF to make code cleaner
@@ -345,6 +344,7 @@ def main():
 	slopeProduct = np.arctan(yProductDiff/XProductDiff.seconds)
 	print (f'Slope of Product: {slopeProduct}')
 
+	'''
 	print('Plotting Additional Data and Saving Output...')
 	# Area for Reflectivity ≥ 35dbz
 	axes[-1][-5].plot_date(datetimes,areaValues,linestyle='solid', ms=2)
@@ -396,7 +396,7 @@ def main():
 	plt.tight_layout()
 	plt.savefig(args.output +'Nexrad.png') 						# Set the output file name
 	#plt.show()
-
+	'''
 	f_o = open(args.output + 'log_stats_area_nexrad.txt', 'a')
 	f_o.write(datetimes[0].strftime("%Y%m%d%H%M%S")
 		+ '\t' + str(args.convLatLon) + '\t' + str(args.convBearing) + '\t' + str(args.scaleFactor)

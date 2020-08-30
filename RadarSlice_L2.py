@@ -15,7 +15,6 @@ import operator
 import numpy as np
 #from datetime import datetime, timedelta
 import datetime
-from metpy.io import Level2File
 
 from Transformation_Matrix_2 import comp_matrix
 
