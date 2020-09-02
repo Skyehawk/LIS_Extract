@@ -168,7 +168,7 @@ def main():
 	filesToStream = fileDF[((fileDF['Time'] >= startDateTime) \
 					& (fileDF['Time'] <= startDateTime + \
 					intervalDateTime))]['L2File'].tolist()							# Bitwise operators, conditions double wrapped in perentheses to handle overriding
-	print(f'files: {[obj.key for obj in filesToStream]}')
+	logging.info(f'files: {[obj.key for obj in filesToStream]}')
 	if len(filesToStream) < 8:
 		warnings.warn("n of radar inputs is not sufficent for curve smoothing",  UserWarning)
 
@@ -228,7 +228,8 @@ def main():
 		axes[ploty][plotx].set_ylim(negYLim, posYLim)
 		pVXs, pVYs = zip(*record['polyVerts'])						# create lists of x and y values for transformed polyVerts
 		axes[ploty][plotx].plot(pVXs,pVYs)
-		if negXLim < record['offset'][1] < posXLim and negYLim < record['offset'][0] < posYLim: 
+		if negXLim < record['offset'][1] < posXLim and \
+		negYLim < record['offset'][0] < posYLim: 
 			axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
 			axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])
 			
@@ -270,55 +271,67 @@ def main():
 	yAreaCVNormAvg = movingaverage(areaCVValuesNormalized, window)[window//2:-window//2]	
 
 	# local minima & maxima on smoothed curves
-	minTemporalwindow = window*2
+	minTemporalWindow = window*2
 
 	areaLocalMax = argrelmax(yAreaAvg)
 	areaLocalMin = argrelmin(yAreaAvg)
 	endpoints = []
-	if yAreaAvg[0] <= np.all(yAreaAvg[1:window]) or yAreaAvg[0] >= np.all(yAreaAvg[1:window]):
+	if yAreaAvg[0] <= np.all(yAreaAvg[1:window+1]) or\
+	 yAreaAvg[0] >= np.all(yAreaAvg[1:window+1]):
 		endpoints.append(0)
-	if yAreaAvg[-1] <= np.all(yAreaAvg[len(yAreaAvg-1)-window:-2]) or yAreaAvg[-1] >= np.all(yAreaAvg[len(yAreaAvg-1)-window:-2]):
+	if yAreaAvg[-1] <= np.all(yAreaAvg[len(yAreaAvg-1)-window+1:-2]) or\
+	 yAreaAvg[-1] >= np.all(yAreaAvg[len(yAreaAvg-1)-window+1:-2]):
 		endpoints.append(len(yAreaAvg)-1) 
+	#print(f'Area: Endpoints: {yAreaAvg[endpoints]}, Local Maxes: {yAreaAvg[areaLocalMax]}, Local Mins: {yAreaAvg[areaLocalMin]}')
 	areaExtremaRaw = sorted(areaLocalMax[0].tolist()+areaLocalMin[0].tolist()+endpoints)	# combine mins, maxes, and endpoints (if endpoints are an extreme) then sort
-	areaExtrema = [x for x in areaExtremaRaw[1:] if x-areaExtremaRaw[0]>=minTemporalwindow] # remove maxima that are within threshold of first one
+	areaExtrema = [x for x in areaExtremaRaw[1:] if x-areaExtremaRaw[0]>=minTemporalWindow] # remove maxima that are within threshold of first one
 	areaExtrema = [areaExtremaRaw[0]]+areaExtrema							# add back in forst one to begining
-	print(f'Area Extrema: {areaExtrema}')
+	logging.info(f'Area Values: {yAreaAvg}')
+	logging.info(f'Area Extrema: {yAreaAvg[areaExtrema]}')
 
 	refLocalMax = argrelmax(yRefAvg)
 	refLocalMin = argrelmin(yRefAvg)
 	endpoints = []
-	if yRefAvg[0] <= np.all(yRefAvg[1:window]) or yRefAvg[0] >= np.all(yRefAvg[1:window]):
+	if yRefAvg[0] <= np.all(yRefAvg[1:window+1]) or\
+	 yRefAvg[0] >= np.all(yRefAvg[1:window+1]):
 		endpoints.append(0)
-	if yRefAvg[-1] <= np.all(yRefAvg[len(yRefAvg-1)-window:-2]) or yRefAvg[-1] >= np.all(yRefAvg[len(yRefAvg-1)-window:-2]):
+	if yRefAvg[-1] <= np.all(yRefAvg[len(yRefAvg-1)-window+1:-2]) or\
+	 yRefAvg[-1] >= np.all(yRefAvg[len(yRefAvg-1)-window+1:-2]):
 		endpoints.append(len(yRefAvg)-1) 
 	refExtremaRaw = sorted(refLocalMax[0].tolist()+refLocalMin[0].tolist()+endpoints)
-	refExtrema = [x for x in refExtremaRaw[1:] if x-refExtremaRaw[0]>=minTemporalwindow]
+	refExtrema = [x for x in refExtremaRaw[1:] if x-refExtremaRaw[0]>=minTemporalWindow]
 	refExtrema = [refExtremaRaw[0]]+refExtrema
-	print(f'Ref Extrema: {refExtrema}')
+	logging.info(f'Ref Values: {yRefAvg}')
+	logging.info(f'Ref Extrema: {yRefAvg[refExtrema]}')
 	
 	#cvLocalMax = argrelmax(yCVAvg)
 	#cvLocalMin = argrelmin(yCVAvg)
 	#endpoints = []
-	#if yCVAvg[0] <= np.all(yCVAvg[1:window]) or yCVAvg[0] >= np.all(yCVAvg[1:window]):
+	#if yCVAvg[0] <= np.all(yCVAvg[1:window+1]) or\
+	# yCVAvg[0] >= np.all(yCVAvg[1:window+1]):
 	#	endpoints.append(0)
-	#if yCVAvg[-1] <= np.all(yCVAvg[len(yCVAvg-1)-window:-2]) or yCVAvg[-1] >= np.all(yCVAvg[len(yCVAvg-1)-window:-2]):
+	#if yCVAvg[-1] <= np.all(yCVAvg[len(yCVAvg-1)-window+1:-2]) or\
+	# yCVAvg[-1] >= np.all(yCVAvg[len(yCVAvg-1)-window+1:-2]):
 	#	endpoints.append(len(yCVAvg)-1) 
 	#cvExtremaRaw = sorted(cvLocalMax[0].tolist()+cvLocalMin[0].tolist()+endpoints)
-	#cvExtrema = [x for x in cvExtremaRaw[1:] if x-cvExtremaRaw[0]>=minTemporalwindow]
+	#cvExtrema = [x for x in cvExtremaRaw[1:] if x-cvExtremaRaw[0]>=minTemporalWindow]
 	#cvExtrema = [cvExtremaRaw[0]]+cvExtrema
-	#print(f'CV Extrema: {cvExtrema}')
+	#logging.info((f'CV Values: {yCVAvg}')
+	#logging.info((f'CV Extrema: {yCVAvg[cvExtrema]}')
 
 	yAreaCVNormLocalMax = argrelmax(yAreaCVNormAvg)
 	yAreaCVNormLocalMin = argrelmin(yAreaCVNormAvg)
 	endpoints = []
-	if yAreaCVNormAvg[0] <= np.all(yAreaCVNormAvg[1:window]) or yAreaCVNormAvg[0] >= np.all(yAreaCVNormAvg[1:window]):
+	if yAreaCVNormAvg[0] <= np.all(yAreaCVNormAvg[1:window+1]) or\
+	 yAreaCVNormAvg[0] >= np.all(yAreaCVNormAvg[1:window+1]):
 		endpoints.append(0)
-	if yAreaCVNormAvg[-1] <= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window:-2]) or yAreaCVNormAvg[-1] >= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window:-2]):
+	if yAreaCVNormAvg[-1] <= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window+1:-2]) or\
+	 yAreaCVNormAvg[-1] >= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window+1:-2]):
 		endpoints.append(len(yAreaCVNormAvg)-1)
 	yAreaCVNormExtremaRaw = sorted(yAreaCVNormLocalMax[0].tolist()+yAreaCVNormLocalMin[0].tolist()+endpoints)
-	yAreaCVNormExtrema = [x for x in yAreaCVNormExtremaRaw[1:] if x-yAreaCVNormExtremaRaw[0]>=minTemporalwindow]
+	yAreaCVNormExtrema = [x for x in yAreaCVNormExtremaRaw[1:] if x-yAreaCVNormExtremaRaw[0]>=minTemporalWindow]
 	yAreaCVNormExtrema = [yAreaCVNormExtremaRaw[0]]+yAreaCVNormExtrema
-	print(f'AreaCVNorm Extrema: {yAreaCVNormExtrema}')
+	logging.info(f'AreaCVNorm Extrema: {yAreaCVNormAvg[yAreaCVNormExtrema]}')
 	
 	# Find slopes of Build-up Lines
 	# 	Area
@@ -327,7 +340,7 @@ def main():
 	yArea = yAreaAvg[np.array([areaExtrema[0],areaExtrema[1]])]								# grab the values (y component) of the sm curve at the begining and at the first extreme
 	yAreaDiff = yArea[1] - yArea[0]															# subtract to find delta y
 	slopeArea = np.arctan(yAreaDiff/xAreaDiff.seconds)										# calc the slope angle
-	print (f'Slope of Area: {slopeArea}')
+	logging.info(f'Slope of Area: {slopeArea}')
 
 	#   Reflectivity
 	xRef = np.array(datetimes[window//2:-window//2])[np.array([refExtrema[0],refExtrema[1]])]

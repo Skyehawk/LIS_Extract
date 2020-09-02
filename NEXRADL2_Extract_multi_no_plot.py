@@ -195,7 +195,7 @@ def main():
 
 	columns =['sweepDateTime', 'metadata', 'sensorData',
 				'areaValue', 'refValue', 'varRefValue']
-	print('Creating Dataframe... (This may take a while if plotting significant data')
+	print('Creating Dataframe... (This may take a while if plotting significant data)')
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)	#SUPER slow
 	print('Converting datetimes...')
 	resultsDF['sweepDateTime'] = pd.to_datetime(resultsDF.sweepDateTime)

@@ -13,7 +13,6 @@ import warnings
 import operator
 
 import numpy as np
-#from datetime import datetime, timedelta
 import datetime
 
 from Transformation_Matrix_2 import comp_matrix
@@ -58,7 +57,7 @@ class RadarSlice_L2(object):
     @property
     def sensorData(self):
         if not hasattr(self,'_sensorData'):
-            self._sensorData = None
+            self._sensorData = {'siteID' : ""}
             warnings.warn("Radar_Slice: No input sensor metadata parsed on __init__", UserWarning)
         return self._sensorData
 
@@ -146,19 +145,40 @@ class RadarSlice_L2(object):
     # Constructor (init)
     def __init__(self, radarFile, sweep=0):
         f = radarFile
-        self.az = np.array([ray[0].az_angle for ray in f.sweeps[sweep]])                    #create array of all azimuth angles within sweep
-        ref_hdr = f.sweeps[sweep][0][4][b'REF'][0]                                          #get header of reflectivity info
-        self.ref_range = np.arange(ref_hdr.num_gates) * ref_hdr.gate_width + ref_hdr.first_gate          #generate ranges of gates from the first gate outwards
+        #sweepDate = datetime.datetime(1970,1,1,0,0) + datetime.timedelta(f.sweeps[sweep][0][0][2] - 1)
+        #self.sweepDateTime =  sweepDate + datetime.timedelta(milliseconds=f.sweeps[sweep][0][0][1])
+        
+        
+        #print(f'type: {type(f.sweeps[sweep][0][0])}')
+        #print(f'value: {f.sweeps[sweep][0][0]}')
 
-        self.ref = np.array([ray[4][b'REF'][1] for ray in f.sweeps[sweep]])
+        # We use the first value to determine if the header is of type Msg31Hdr (2008 - pres) or Msg1Fmt (2007 & prior) 
+        if type(f.sweeps[sweep][0][0][0]) is int:
+            sweepDate = datetime.datetime(1970,1,1,0,0) + datetime.timedelta(f.sweeps[sweep][0][0][1] - 1)
+            self.sweepDateTime =  sweepDate + datetime.timedelta(milliseconds=f.sweeps[sweep][0][0][0])
+        elif type(f.sweeps[sweep][0][0][0]) is bytes:
+            self.sensorData = {'siteID' : str(f.sweeps[sweep][0][0][0])[2:-1]}
+            sweepDate = datetime.datetime(1970,1,1,0,0) + datetime.timedelta(f.sweeps[sweep][0][0][2] - 1)
+            self.sweepDateTime =  sweepDate + datetime.timedelta(milliseconds=f.sweeps[sweep][0][0][1])
+
+        #print(f'SweepDT{self.sweepDateTime}')
+
+        #print(f'site: {self.sensorData}')
+        self.az = np.array([ray[0].az_angle for ray in f.sweeps[sweep]])                    #create array of all azimuth angles within sweep
+        
+        if self.sweepDateTime >= datetime.datetime(2008, 1, 1):
+            ref_hdr = f.sweeps[sweep][0][4][b'REF'][0]                                          #get header of reflectivity info
+            self.ref = np.array([ray[4][b'REF'][1] for ray in f.sweeps[sweep]])
+        elif self.sweepDateTime < datetime.datetime(2008, 1, 1):
+            ref_hdr = f.sweeps[sweep][0][1]['REF'][0]
+            #print(f'ref: {f.sweeps[sweep][0][4]['REF'][1]}')
+            self.ref = np.array([ray[1]['REF'][1] for ray in f.sweeps[sweep]]) 
+        #print(f'ref: {self.ref[0]}')
+
+        self.ref_range = np.arange(ref_hdr.num_gates) * ref_hdr.gate_width + ref_hdr.first_gate          #generate ranges of gates from the first gate outwards
 
         self.data = np.ma.array(self.ref)
         self.data[np.isnan(self.data)] = np.ma.masked                                            # Mask out the zeros
-
-        sweepDate = datetime.datetime(1970,1,1,0,0) + datetime.timedelta(f.sweeps[sweep][0][0][2] - 1)
-        self.sweepDateTime =  sweepDate + datetime.timedelta(milliseconds=f.sweeps[sweep][0][0][1])
-        #print(f'SweepDT{self.sweepDateTime}')
-        self.sensorData = {'siteID' : str(f.sweeps[sweep][0][0][0])[2:-1]}
 
         #range map - km^2 at each bin in range*azimuth
         rangeStep = ref_hdr.gate_width
