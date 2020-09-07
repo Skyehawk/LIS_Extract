@@ -174,14 +174,18 @@ def main():
 
 	# --- Stream files ahead of time to avoid error with multiprocessing and file handles ---
 	filesToWorkers = []
+
+
 	for L2FileStream in tqdm(filesToStream,desc="Streaming L2 Files"):
-		if datetime.datetime.strptime(L2FileStream.key[20:35], '%Y%m%d_%H%M%S') >= datetime.datetime(2016, 1, 1):
-			filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
-		else:
-			bytestream = BytesIO(L2FileStream.get()['Body'].read())
-			with gzip.open(bytestream, 'rb') as f:
-				filesToWorkers.append(Level2File(f))  
-				#filesToWorkers.append(Level2File(GzipFile(bytestream).read()))
+		try:
+			if datetime.datetime.strptime(L2FileStream.key[20:35], '%Y%m%d_%H%M%S') >= datetime.datetime(2016, 1, 1):
+				filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
+			else:
+				bytestream = BytesIO(L2FileStream.get()['Body'].read())
+				with gzip.open(bytestream, 'rb') as f:
+					filesToWorkers.append(Level2File(f))  
+		except:
+			print("value Error, Most likely in parsing header" )
 
 	# --- Create pool for workers ---
 	for file in filesToWorkers:
