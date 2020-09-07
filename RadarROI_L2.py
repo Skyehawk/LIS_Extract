@@ -122,7 +122,7 @@ class RadarROI_L2(RadarSlice_L2):
 
         # --- Clip our masked array, create sub-array of data and rotate ---
         i, j = np.where(grid)
-        self.mask = np.meshgrid(np.arange(min(i), max(i) + 1), np.arange(min(j), max(j) + 1), indexing='ij')
+        self.mask = np.meshgrid(np.arange(min(i), max(i) + 1), np.arange(min(j), max(j) + 1), indexing='ij')    # possible for there to be 0 (x or y) locs if crds are outside range of sweep for a certian sensor
         rDataMaskedClip = self.data[self.mask]
         rDataMaskClip = grid[self.mask]
         self.clippedData = rDataMaskedClip*rDataMaskClip
@@ -137,9 +137,6 @@ class RadarROI_L2(RadarSlice_L2):
     #Override
     def find_area(self, reflectThresh=0.0):
         self.stackedData = np.dstack([self.clippedData, self.clippedRangeMap])                     # remove last range gate on the rangeMap
-        #dep    #rsStackedData = self.stackedData.reshape((self.stackedData.shape[0])*(self.stackedData.shape[1]),2)  #Sholdn't need to rehape here, but we don't need the extra dim and would need to collapse it later
-        #dep    #self.area = sum(map(lambda i: i >= reflectThresh, self.data.flatten()))
-        #dep    #self.area = sum((rsStackedData * np.array(list(map(lambda i: i >= reflectThresh,rsStackedData)))).T[1]) # Grab the underlying cell area values
         self.area = np.nansum(np.where(self.stackedData[:,:,0]>= reflectThresh, self.stackedData[:,:,1], np.nan))
         return self.area
 

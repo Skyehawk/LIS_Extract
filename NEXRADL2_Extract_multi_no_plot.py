@@ -133,9 +133,7 @@ def calculate_radar_stats(d, radarFile):
 	roi.find_mean_reflectivity(reflectThresh)
 	roi.find_variance_reflectivity(reflectThresh)
 	d[roi.sweepDateTime] = [roi.sweepDateTime,roi.metadata,roi.sensorData,\
-							roi.mask,roi.xlocs,roi.ylocs,roi.clippedData,\
-							roi.polyVerts,offset,roi.area,roi.meanReflectivity,\
-							roi.varReflectivity]
+							roi.area,roi.meanReflectivity, roi.varReflectivity]
 
 def main():
 	manager = mp.Manager()
@@ -168,24 +166,20 @@ def main():
 	filesToStream = fileDF[((fileDF['Time'] >= startDateTime) \
 					& (fileDF['Time'] <= startDateTime + \
 					intervalDateTime))]['L2File'].tolist()							# Bitwise operators, conditions double wrapped in perentheses to handle overriding
-	logging.info(f'files: {[obj.key for obj in filesToStream]}')
+	print(f'files: {[obj.key for obj in filesToStream]}')
 	if len(filesToStream) < 8:
 		warnings.warn("n of radar inputs is not sufficent for curve smoothing",  UserWarning)
 
 	# --- Stream files ahead of time to avoid error with multiprocessing and file handles ---
 	filesToWorkers = []
-
-
 	for L2FileStream in tqdm(filesToStream,desc="Streaming L2 Files"):
-		try:
-			if datetime.datetime.strptime(L2FileStream.key[20:35], '%Y%m%d_%H%M%S') >= datetime.datetime(2016, 1, 1):
-				filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
-			else:
-				bytestream = BytesIO(L2FileStream.get()['Body'].read())
-				with gzip.open(bytestream, 'rb') as f:
-					filesToWorkers.append(Level2File(f))  
-		except:
-			print("value Error, Most likely in parsing header" )
+		if datetime.datetime.strptime(L2FileStream.key[20:35], '%Y%m%d_%H%M%S') >= datetime.datetime(2016, 1, 1):
+			filesToWorkers.append(Level2File(L2FileStream.get()['Body']))
+		else:
+			bytestream = BytesIO(L2FileStream.get()['Body'].read())
+			with gzip.open(bytestream, 'rb') as f:
+				filesToWorkers.append(Level2File(f))  
+				#filesToWorkers.append(Level2File(GzipFile(bytestream).read()))
 
 	# --- Create pool for workers ---
 	for file in filesToWorkers:
@@ -199,8 +193,8 @@ def main():
 	pool.close()
 	pool.join()
 
-	columns =['sweepDateTime', 'metadata', 'sensorData', 'indices', 'xlocs', 'ylocs', 
-				'data', 'polyVerts', 'offset', 'areaValue', 'refValue', 'varRefValue']
+	columns =['sweepDateTime', 'metadata', 'sensorData',
+				'areaValue', 'refValue', 'varRefValue']
 	print('Creating Dataframe... (This may take a while if plotting significant data)')
 	resultsDF = pd.DataFrame.from_dict(results, orient='index', columns=columns)	#SUPER slow
 	print('Converting datetimes...')
@@ -211,6 +205,7 @@ def main():
 	print(resultsDF[['areaValue','refValue']].head(5))
 
 	# --- Plot time series---
+	'''
 	fig, axes = plt.subplots(8, 8, figsize=(30, 30))
 	date_format = mpl_dates.DateFormatter('%H:%Mz')
 
@@ -232,8 +227,7 @@ def main():
 		axes[ploty][plotx].set_ylim(negYLim, posYLim)
 		pVXs, pVYs = zip(*record['polyVerts'])						# create lists of x and y values for transformed polyVerts
 		axes[ploty][plotx].plot(pVXs,pVYs)
-		if negXLim < record['offset'][1] < posXLim and \
-		negYLim < record['offset'][0] < posYLim: 
+		if negXLim < record['offset'][1] < posXLim and negYLim < record['offset'][0] < posYLim: 
 			axes[ploty][plotx].plot(record['offset'][1], record['offset'][0], 'o')			# Location of the radar
 			axes[ploty][plotx].text(record['offset'][1], record['offset'][0], record['sensorData']['siteID'])
 			
@@ -241,7 +235,7 @@ def main():
 		axes[ploty][plotx].text(0.0, 0.0, str(args.convLatLon))
 		add_timestamp(axes[ploty][plotx], record['sweepDateTime'], y=0.02, high_contrast=True)
 		axes[ploty][plotx].tick_params(axis='both', which='both')
-
+	'''
 	print('Calculating Statistics...')
 
 	# pull data out of DF to make code cleaner
@@ -275,67 +269,55 @@ def main():
 	yAreaCVNormAvg = movingaverage(areaCVValuesNormalized, window)[window//2:-window//2]	
 
 	# local minima & maxima on smoothed curves
-	minTemporalWindow = window*2
+	minTemporalwindow = window*2
 
 	areaLocalMax = argrelmax(yAreaAvg)
 	areaLocalMin = argrelmin(yAreaAvg)
 	endpoints = []
-	if yAreaAvg[0] <= np.all(yAreaAvg[1:window+1]) or\
-	 yAreaAvg[0] >= np.all(yAreaAvg[1:window+1]):
+	if yAreaAvg[0] <= np.all(yAreaAvg[1:window]) or yAreaAvg[0] >= np.all(yAreaAvg[1:window]):
 		endpoints.append(0)
-	if yAreaAvg[-1] <= np.all(yAreaAvg[len(yAreaAvg-1)-window+1:-2]) or\
-	 yAreaAvg[-1] >= np.all(yAreaAvg[len(yAreaAvg-1)-window+1:-2]):
+	if yAreaAvg[-1] <= np.all(yAreaAvg[len(yAreaAvg-1)-window:-2]) or yAreaAvg[-1] >= np.all(yAreaAvg[len(yAreaAvg-1)-window:-2]):
 		endpoints.append(len(yAreaAvg)-1) 
-	#print(f'Area: Endpoints: {yAreaAvg[endpoints]}, Local Maxes: {yAreaAvg[areaLocalMax]}, Local Mins: {yAreaAvg[areaLocalMin]}')
 	areaExtremaRaw = sorted(areaLocalMax[0].tolist()+areaLocalMin[0].tolist()+endpoints)	# combine mins, maxes, and endpoints (if endpoints are an extreme) then sort
-	areaExtrema = [x for x in areaExtremaRaw[1:] if x-areaExtremaRaw[0]>=minTemporalWindow] # remove maxima that are within threshold of first one
+	areaExtrema = [x for x in areaExtremaRaw[1:] if x-areaExtremaRaw[0]>=minTemporalwindow] # remove maxima that are within threshold of first one
 	areaExtrema = [areaExtremaRaw[0]]+areaExtrema							# add back in forst one to begining
-	logging.info(f'Area Values: {yAreaAvg}')
-	logging.info(f'Area Extrema: {yAreaAvg[areaExtrema]}')
+	print(f'Area Extrema: {areaExtrema}')
 
 	refLocalMax = argrelmax(yRefAvg)
 	refLocalMin = argrelmin(yRefAvg)
 	endpoints = []
-	if yRefAvg[0] <= np.all(yRefAvg[1:window+1]) or\
-	 yRefAvg[0] >= np.all(yRefAvg[1:window+1]):
+	if yRefAvg[0] <= np.all(yRefAvg[1:window]) or yRefAvg[0] >= np.all(yRefAvg[1:window]):
 		endpoints.append(0)
-	if yRefAvg[-1] <= np.all(yRefAvg[len(yRefAvg-1)-window+1:-2]) or\
-	 yRefAvg[-1] >= np.all(yRefAvg[len(yRefAvg-1)-window+1:-2]):
+	if yRefAvg[-1] <= np.all(yRefAvg[len(yRefAvg-1)-window:-2]) or yRefAvg[-1] >= np.all(yRefAvg[len(yRefAvg-1)-window:-2]):
 		endpoints.append(len(yRefAvg)-1) 
 	refExtremaRaw = sorted(refLocalMax[0].tolist()+refLocalMin[0].tolist()+endpoints)
-	refExtrema = [x for x in refExtremaRaw[1:] if x-refExtremaRaw[0]>=minTemporalWindow]
+	refExtrema = [x for x in refExtremaRaw[1:] if x-refExtremaRaw[0]>=minTemporalwindow]
 	refExtrema = [refExtremaRaw[0]]+refExtrema
-	logging.info(f'Ref Values: {yRefAvg}')
-	logging.info(f'Ref Extrema: {yRefAvg[refExtrema]}')
+	print(f'Ref Extrema: {refExtrema}')
 	
 	#cvLocalMax = argrelmax(yCVAvg)
 	#cvLocalMin = argrelmin(yCVAvg)
 	#endpoints = []
-	#if yCVAvg[0] <= np.all(yCVAvg[1:window+1]) or\
-	# yCVAvg[0] >= np.all(yCVAvg[1:window+1]):
+	#if yCVAvg[0] <= np.all(yCVAvg[1:window]) or yCVAvg[0] >= np.all(yCVAvg[1:window]):
 	#	endpoints.append(0)
-	#if yCVAvg[-1] <= np.all(yCVAvg[len(yCVAvg-1)-window+1:-2]) or\
-	# yCVAvg[-1] >= np.all(yCVAvg[len(yCVAvg-1)-window+1:-2]):
+	#if yCVAvg[-1] <= np.all(yCVAvg[len(yCVAvg-1)-window:-2]) or yCVAvg[-1] >= np.all(yCVAvg[len(yCVAvg-1)-window:-2]):
 	#	endpoints.append(len(yCVAvg)-1) 
 	#cvExtremaRaw = sorted(cvLocalMax[0].tolist()+cvLocalMin[0].tolist()+endpoints)
-	#cvExtrema = [x for x in cvExtremaRaw[1:] if x-cvExtremaRaw[0]>=minTemporalWindow]
+	#cvExtrema = [x for x in cvExtremaRaw[1:] if x-cvExtremaRaw[0]>=minTemporalwindow]
 	#cvExtrema = [cvExtremaRaw[0]]+cvExtrema
-	#logging.info((f'CV Values: {yCVAvg}')
-	#logging.info((f'CV Extrema: {yCVAvg[cvExtrema]}')
+	#print(f'CV Extrema: {cvExtrema}')
 
 	yAreaCVNormLocalMax = argrelmax(yAreaCVNormAvg)
 	yAreaCVNormLocalMin = argrelmin(yAreaCVNormAvg)
 	endpoints = []
-	if yAreaCVNormAvg[0] <= np.all(yAreaCVNormAvg[1:window+1]) or\
-	 yAreaCVNormAvg[0] >= np.all(yAreaCVNormAvg[1:window+1]):
+	if yAreaCVNormAvg[0] <= np.all(yAreaCVNormAvg[1:window]) or yAreaCVNormAvg[0] >= np.all(yAreaCVNormAvg[1:window]):
 		endpoints.append(0)
-	if yAreaCVNormAvg[-1] <= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window+1:-2]) or\
-	 yAreaCVNormAvg[-1] >= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window+1:-2]):
+	if yAreaCVNormAvg[-1] <= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window:-2]) or yAreaCVNormAvg[-1] >= np.all(yAreaCVNormAvg[len(yAreaCVNormAvg-1)-window:-2]):
 		endpoints.append(len(yAreaCVNormAvg)-1)
 	yAreaCVNormExtremaRaw = sorted(yAreaCVNormLocalMax[0].tolist()+yAreaCVNormLocalMin[0].tolist()+endpoints)
-	yAreaCVNormExtrema = [x for x in yAreaCVNormExtremaRaw[1:] if x-yAreaCVNormExtremaRaw[0]>=minTemporalWindow]
+	yAreaCVNormExtrema = [x for x in yAreaCVNormExtremaRaw[1:] if x-yAreaCVNormExtremaRaw[0]>=minTemporalwindow]
 	yAreaCVNormExtrema = [yAreaCVNormExtremaRaw[0]]+yAreaCVNormExtrema
-	logging.info(f'AreaCVNorm Extrema: {yAreaCVNormAvg[yAreaCVNormExtrema]}')
+	print(f'AreaCVNorm Extrema: {yAreaCVNormExtrema}')
 	
 	# Find slopes of Build-up Lines
 	# 	Area
@@ -344,7 +326,7 @@ def main():
 	yArea = yAreaAvg[np.array([areaExtrema[0],areaExtrema[1]])]								# grab the values (y component) of the sm curve at the begining and at the first extreme
 	yAreaDiff = yArea[1] - yArea[0]															# subtract to find delta y
 	slopeArea = np.arctan(yAreaDiff/xAreaDiff.seconds)										# calc the slope angle
-	logging.info(f'Slope of Area: {slopeArea}')
+	print (f'Slope of Area: {slopeArea}')
 
 	#   Reflectivity
 	xRef = np.array(datetimes[window//2:-window//2])[np.array([refExtrema[0],refExtrema[1]])]
@@ -362,6 +344,7 @@ def main():
 	slopeProduct = np.arctan(yProductDiff/XProductDiff.seconds)
 	print (f'Slope of Product: {slopeProduct}')
 
+	'''
 	print('Plotting Additional Data and Saving Output...')
 	# Area for Reflectivity ≥ 35dbz
 	axes[-1][-5].plot_date(datetimes,areaValues,linestyle='solid', ms=2)
@@ -413,7 +396,7 @@ def main():
 	plt.tight_layout()
 	plt.savefig(args.output +'Nexrad.png') 						# Set the output file name
 	#plt.show()
-
+	'''
 	f_o = open(args.output + 'log_stats_area_nexrad.txt', 'a')
 	f_o.write(datetimes[0].strftime("%Y%m%d%H%M%S")
 		+ '\t' + str(args.convLatLon) + '\t' + str(args.convBearing) + '\t' + str(args.scaleFactor)
