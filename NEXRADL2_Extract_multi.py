@@ -208,7 +208,7 @@ def main():
 	print('Sorting...')
 	resultsDF.sort_values(by='sweepDateTime', inplace=True)
 	#resultsDF.to_csv(args.output + '.csv', index = False)
-	print(resultsDF[['areaValue','refValue']].head(5))
+	print(resultsDF[['areaValue','refValue']].head(22))
 
 	# --- Plot time series---
 	fig, axes = plt.subplots(8, 8, figsize=(30, 30))
