@@ -45,14 +45,32 @@ outputPath = args["output"]
 
 # --- Read in 3 datasets: 1) LIS Data for layer of intrest 2) GFS U (Easting) component of wind velocity 3) GFS V (Northing) component of wind velocity ---
 LISGrbs = pygrib.open(args["LIS"])
-LISGrb = None
-if datetime.datetime.strptime(str(LISGrbs.select()[4].dataDate), '%Y%m%d') < datetime.datetime(2013, 1, 1):								# LIS grbs fields were expanded in 2013 & 2015
-	LISGrb = LISGrbs.select()[4]											# index positions of relevent data (pre 2012 is 16, 2013-2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
-elif datetime.datetime.strptime(str(LISGrbs.select()[9].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
-	LISGrb = LISGrbs.select()[9]											
-else:
-	LISGrb = LISGrbs.select()[9]
-#print("\nLIS Data: " + str(LISGrb))
+year = str(datetime.datetime.strptime(str(LISGrbs.select()[1].dataDate), '%Y%m%d').year)
+LISIdx = {
+  '2007': 16,
+  '2008': 16,
+  '2009': 16,
+  '2010': 16,
+  '2011': 16,
+  '2012': 16,
+  '2013': 28,
+  '2014': 16,
+  '2015': 31,
+  '2016': 32,
+  '2017': 32
+}[year]
+
+LISGrb =LISGrbs.select()[LISIdx]
+
+
+#if datetime.datetime.strptime(str(LISGrbs.select()[16].dataDate), '%Y%m%d') < datetime.datetime(2013, 1, 1):								# LIS grbs fields were expanded in 2013 & 2015
+#	LISGrb = LISGrbs.select()[16]											# index positions of relevent data (pre 2012 is 16, 2013-2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
+#elif datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
+#	LISGrb = LISGrbs.select()[27]											
+#else:
+#	LISGrb = LISGrbs.select()[32]
+
+print("\nLIS Data: " + str(LISGrb))
 LISData = LISGrb.values														# array containing gridded LIS values
 
 GFSGrbs = pygrib.open(args["GFS"])
@@ -137,33 +155,42 @@ LISAlignedMeanDep = LISAligned - np.nanmean(LISAligned)			# calculate the mean d
 gmap=gauss_map(size_x=np.shape(LISAligned)[0], size_y = np.shape(LISAligned)[1], sigma_x=10, sigma_y=20)
 
 LISGradient2d = np.gradient(LISAligned)
-LISGradient2dMag = np.sqrt(LISGradient2d[0] ** 2 + LISGradient2d[0] ** 2)
+LISGradient2dMag = np.sqrt(LISGradient2d[0] ** 2 + LISGradient2d[1] ** 2)
 
-grad_Dep_Val_Sq_Weighted = np.nansum((LISGradient2dMag * LISAlignedMeanDep * gmap) ** 2)
-print("Weighted coeff %2.8f" %grad_Dep_Val_Sq_Weighted)
 
-###f_o = open(args["output"] + 'log_stats_area.txt', 'a')
-###f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
-###	+ '\t' + str(args["lat_lon"]) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
-###	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS Aligned data
-###	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS ALigned data
-###	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned Data
-###	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departues
-###	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departues
-###	+ '\t' + str(np.nansum(LISAligned[35:,:]) / np.nansum(LISAligned[:35,:])) 											# ratio of LIS Aligned data upwind:downwind
-###	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) 							# ratio of LIS Aligned departures upwind:downwind
-###	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# ratio of weighted LIS Aligned data upwind:downwind
-###	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# ratio of weighted LIS Aligned departures upwind:downwind
-###	+ '\t' + str(np.nansum(LISAligned[35:,:]) - np.nansum(LISAligned[:35,:])) 											# difference of LIS Aligned data upwind:downwind
-###	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
-###	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
-###	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
-###	+ '\t' + str(np.nanmax(LISGradient2dMag))
-###	+ '\t' + str(np.nanmax(LISGradient2dMag*gmap))
-###	+ '\t' + str(np.nanmax(LISGradient2dMag[17:53,17:53]))
-###	+ '\t' + str(grad_Dep_Val_Sq_Weighted) + '\n')																				
+a = np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])													# ratio LIS mean dep
+b = np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])															# difference LIS mean dep
+c = np.nanmean(LISAligned)
+d = np.nanstd(LISAligned)
+print(f'd: {d} c:{c}')
 
-###f_o.close()
+composite = (a*b)
+#composite = c*(b/d)
+#gmap applied next
+print("Composite %2.4f" %composite)
+
+f_o = open(args["output"] + 'log_stats_area_09-17-2020_4.txt', 'a')
+f_o.write(str(datetime.datetime.strptime(str(LISGrb.dataDate), '%Y%m%d')) 
+	+ '\t' + str(args["lat_lon"]) + '\t' + str(testLocBearing) + '\t' + str(testLocMag) 
+	+ '\t' + str(np.nanstd(LISAligned)) 																				# std dev of LIS Aligned data
+	+ '\t' + str(np.nansum(LISAligned*gmap)) 																			# weighted mean of LIS ALigned data
+	+ '\t' + str(np.nanmean(LISAligned)) 																				# mean of LIS Aligned Data
+	+ '\t' + str(np.nanstd(LISAlignedMeanDep)) 																			# std dev of LIS Aligned departues
+	+ '\t' + str(np.nansum(LISAlignedMeanDep*gmap)) 																	# weighted mean of LIS Aligned departues
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) / np.nansum(LISAligned[:35,:])) 											# ratio of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:])) 							# ratio of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) / np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# ratio of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) / np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# ratio of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]) - np.nansum(LISAligned[:35,:])) 											# difference of LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:])) 							# difference of LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nansum(LISAligned[35:,:]*gmap[35:,:]) - np.nansum(LISAligned[:35,:]*gmap[:35,:])) 					# difference of weighted LIS Aligned data upwind:downwind
+	+ '\t' + str(np.nansum(LISAlignedMeanDep[35:,:]*gmap[35:,:]) - np.nansum(LISAlignedMeanDep[:35,:]*gmap[:35,:])) 	# difference of weighted LIS Aligned departures upwind:downwind
+	+ '\t' + str(np.nanmax(LISGradient2dMag))
+	+ '\t' + str(np.nanmax(LISGradient2dMag*gmap))
+	+ '\t' + str(np.nanmax(LISGradient2dMag[17:53,17:53]))
+	+ '\t' + str(composite) + '\n')																				
+
+f_o.close()
 
 # --- Plot data and create output ---
 '''
@@ -290,22 +317,22 @@ plt.savefig(args["output"] +'Temps.png') # Set the output file name
 '''
 
 # --- Save output as ascii format in .txt file ---
-print("Saving .ascii ...")
-ncols = LISAlignedMeanDep.shape[0]
-nrows = LISAlignedMeanDep.shape[1]
-cellsize = 3.0/111.0
-xllcorner = -(LISAlignedMeanDep.shape[0]/2) * cellsize
-yllcorner = -(LISAlignedMeanDep.shape[1]/2) * cellsize
-nodata_value = -9999
-np.nan_to_num(LISAlignedMeanDep, copy=False, nan=-9999)	
-values = LISAlignedMeanDep.flatten()
-toWrite = 'ncols ' + str(ncols) +\
-			'\nnrows ' + str(nrows) +\
-			'\nxllcorner ' + str(xllcorner) +\
-			'\nyllcorner ' + str(yllcorner) +\
-			'\ncellsize ' + str(cellsize) +\
-			'\nnodata_value ' + str(nodata_value) + '\n' +\
-			' '.join(map(str, values))
-ascii_file = open(args["output"] +'RSM_Mean_Dep.txt', "w")
-ascii_file.write(toWrite)
-ascii_file.close()
+###print("Saving .ascii ...")
+###ncols = LISAlignedMeanDep.shape[0]
+###nrows = LISAlignedMeanDep.shape[1]
+###cellsize = 3.0/111.0
+###xllcorner = -(LISAlignedMeanDep.shape[0]/2) * cellsize
+###yllcorner = -(LISAlignedMeanDep.shape[1]/2) * cellsize
+###nodata_value = -9999
+###np.nan_to_num(LISAlignedMeanDep, copy=False, nan=-9999)	
+###values = LISAlignedMeanDep.flatten()
+###toWrite = 'ncols ' + str(ncols) +\
+###			'\nnrows ' + str(nrows) +\
+###			'\nxllcorner ' + str(xllcorner) +\
+###			'\nyllcorner ' + str(yllcorner) +\
+###			'\ncellsize ' + str(cellsize) +\
+###			'\nnodata_value ' + str(nodata_value) + '\n' +\
+###			' '.join(map(str, values))
+###ascii_file = open(args["output"] +'RSM_Mean_Dep.txt', "w")
+###ascii_file.write(toWrite)
+###ascii_file.close()

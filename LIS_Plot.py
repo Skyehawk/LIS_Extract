@@ -38,7 +38,7 @@ grib = args["input"] # Set the file name of your input GRIB file
 grbs = pygrib.open(grib)
 
 #grb = grbs.select()[32] #RSM 0-10 in LIS (9 is VSM0-10) (for dates 2015 & after, before this it is idx position 15)
-grb = grbs.select()[15]
+grb = grbs.select()[0]
 print("\nData: " + str(grb))
 data = grb.values
 

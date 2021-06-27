@@ -45,15 +45,25 @@ outputPath = args["output"]
 
 # --- Read in 3 datasets: 1) LIS Data for layer of intrest 2) GFS U (Easting) component of wind velocity 3) GFS V (Northing) component of wind velocity ---
 LISGrbs = pygrib.open(args["LIS"])
-LISGrb = None
-if datetime.datetime.strptime(str(LISGrbs.select()[16].dataDate), '%Y%m%d') < datetime.datetime(2013, 1, 1):								# LIS grbs fields were expanded in 2013 & 2015
-	LISGrb = LISGrbs.select()[16]											# index positions of relevent data (pre 2012 is 16, 2013-2015 27 is the idx for rsm0-10cm, 32 for post 2015; idx 13 is temp for 0-10cm)
-elif datetime.datetime.strptime(str(LISGrbs.select()[27].dataDate), '%Y%m%d') < datetime.datetime(2015, 1, 1):								# LIS grbs fields were expanded in 2015
-	LISGrb = LISGrbs.select()[27]											
-else:
-	LISGrb = LISGrbs.select()[32]
+LISGrbs = pygrib.open(args["LIS"])
+year = str(datetime.datetime.strptime(str(LISGrbs.select()[1].dataDate), '%Y%m%d').year)
+LISIdx = {
+  '2007': 16,
+  '2008': 16,
+  '2009': 16,
+  '2010': 16,
+  '2011': 16,
+  '2012': 16,
+  '2013': 28,
+  '2014': 16,
+  '2015': 31,
+  '2016': 32,
+  '2017': 32
+}[year]
 
-#print("\nLIS Data: " + str(LISGrb))
+LISGrb =LISGrbs.select()[LISIdx]
+
+print("\nLIS Data: " + str(LISGrb))
 
 LISData = LISGrb.values														# array containing gridded LIS values
 
@@ -286,12 +296,15 @@ axes[3][3].axis('off')
 plt.savefig(args["output"] +'.png') # Set the output file name
 
 # --- Save output as ascii format in .txt file ---
+
 print("Saving .ascii ...")
 ncols = LISAligned.shape[0]
 nrows = LISAligned.shape[1]
-cellsize = 3.0/111.0
+cellsize = 111*2/68
 xllcorner = -(LISAligned.shape[0]/2) * cellsize
 yllcorner = -(LISAligned.shape[1]/2) * cellsize
+xllcorner = -1.0
+yllcorner = -1.0
 nodata_value = -9999
 np.nan_to_num(LISAligned, copy=False, nan=-9999)				#Flip because we start at lower left corner, else the data will be mirrord about the x axis
 values = np.flip(LISAligned, axis=0).flatten()
@@ -302,6 +315,6 @@ toWrite = 'ncols ' + str(ncols) +\
 			'\ncellsize ' + str(cellsize) +\
 			'\nnodata_value ' + str(nodata_value) + '\n' +\
 			' '.join(map(str, values))
-ascii_file = open(args["output"] +'.txt', "w")
+ascii_file = open(args["output"] +'FINAL_Mean_Deps_10-03-2020.txt', "w")
 ascii_file.write(toWrite)
 ascii_file.close()

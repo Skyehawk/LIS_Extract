@@ -84,7 +84,7 @@ for level in levels:
 
 outA = np.array(out)
 print(out)
-f_o = open(args["output"] + 'log_stats_area.txt', 'a')
+f_o = open(args["output"] + '09-17-2020_0.txt', 'a')
 f_o.write(str(datetime.datetime.strptime(str(testGrb.dataDate), '%Y%m%d')) 
 	+ '\t' + str(args["lat_lon"]) 
 	+ '\t' + str(outA[0,1]) + '\t' + str(outA[0,2])				# 950hPa, Bearing/Mag

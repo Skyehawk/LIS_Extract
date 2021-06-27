@@ -295,17 +295,17 @@ def main():
 	refExtrema = [refExtremaRaw[0]]+refExtrema
 	print(f'Ref Extrema: {refExtrema}')
 	
-	#cvLocalMax = argrelmax(yCVAvg)
-	#cvLocalMin = argrelmin(yCVAvg)
-	#endpoints = []
-	#if yCVAvg[0] <= np.all(yCVAvg[1:window]) or yCVAvg[0] >= np.all(yCVAvg[1:window]):
-	#	endpoints.append(0)
-	#if yCVAvg[-1] <= np.all(yCVAvg[len(yCVAvg-1)-window:-2]) or yCVAvg[-1] >= np.all(yCVAvg[len(yCVAvg-1)-window:-2]):
-	#	endpoints.append(len(yCVAvg)-1) 
-	#cvExtremaRaw = sorted(cvLocalMax[0].tolist()+cvLocalMin[0].tolist()+endpoints)
-	#cvExtrema = [x for x in cvExtremaRaw[1:] if x-cvExtremaRaw[0]>=minTemporalwindow]
-	#cvExtrema = [cvExtremaRaw[0]]+cvExtrema
-	#print(f'CV Extrema: {cvExtrema}')
+	cvLocalMax = argrelmax(yCVAvg)
+	cvLocalMin = argrelmin(yCVAvg)
+	endpoints = []
+	if yCVAvg[0] <= np.all(yCVAvg[1:window]) or yCVAvg[0] >= np.all(yCVAvg[1:window]):
+		endpoints.append(0)
+	if yCVAvg[-1] <= np.all(yCVAvg[len(yCVAvg-1)-window:-2]) or yCVAvg[-1] >= np.all(yCVAvg[len(yCVAvg-1)-window:-2]):
+		endpoints.append(len(yCVAvg)-1) 
+	cvExtremaRaw = sorted(cvLocalMax[0].tolist()+cvLocalMin[0].tolist()+endpoints)
+	cvExtrema = [x for x in cvExtremaRaw[1:] if x-cvExtremaRaw[0]>=minTemporalwindow]
+	cvExtrema = [cvExtremaRaw[0]]+cvExtrema
+	print(f'CV Extrema: {cvExtrema}')
 
 	yAreaCVNormLocalMax = argrelmax(yAreaCVNormAvg)
 	yAreaCVNormLocalMin = argrelmin(yAreaCVNormAvg)
